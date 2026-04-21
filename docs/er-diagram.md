@@ -159,3 +159,43 @@ erDiagram
     PLANS ||--o{ USER_SUBSCRIPTIONS : assigned_in
     USERS ||--o{ USER_SUBSCRIPTIONS : has
 ```
+
+## MVP
+
+```mermaid
+
+erDiagram
+    USERS {
+        uuid id PK
+        string email UK
+        string password_hash
+        string role
+        datetime created_at
+        datetime updated_at
+    }
+
+    LINKS {
+        uuid id PK
+        uuid owner_id FK
+        string code UK
+        string target_url
+        string status
+        datetime last_clicked_at
+        datetime created_at
+        datetime updated_at
+        datetime deleted_at
+    }
+
+    CLICK_EVENTS {
+        uuid id PK
+        uuid link_id FK
+        datetime clicked_at
+        string referrer
+        string user_agent
+        datetime created_at
+    }
+
+    USERS ||--o{ LINKS : owns
+    LINKS ||--o{ CLICK_EVENTS : collects
+
+```
