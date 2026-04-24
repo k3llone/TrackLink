@@ -93,55 +93,6 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /api/v1/auth/password-reset/request:
-    post:
-      tags: [Auth]
-      summary: Request password reset email
-      operationId: requestPasswordReset
-      description: |
-        Sends a password reset link to the provided email address.
-        Always returns 200 to avoid leaking whether the email exists.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PasswordResetRequestBody'
-      responses:
-        '200':
-          description: Reset email sent if account exists
-        '400':
-          $ref: '#/components/responses/ValidationError'
-
-  /api/v1/auth/password-reset/confirm:
-    post:
-      tags: [Auth]
-      summary: Confirm password reset with token
-      operationId: confirmPasswordReset
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PasswordResetConfirmBody'
-      responses:
-        '204':
-          description: Password changed successfully
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '404':
-          description: Token not found or already used
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '410':
-          description: Token expired
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
   /api/v1/me:
     get:
       tags: [Auth]
@@ -212,12 +163,6 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          description: Link limit reached for current plan
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: Custom alias is already taken
           content:
@@ -482,60 +427,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/admin/links/{linkId}/unblock:
-    patch:
-      tags: [Admin]
-      summary: Unblock short link
-      operationId: adminUnblockLink
-      security:
-        - sessionCookie: []
-      parameters:
-        - $ref: '#/components/parameters/LinkIdParam'
-      responses:
-        '200':
-          description: Link unblocked
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminLink'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /api/v1/admin/links/{linkId}/status:
-    patch:
-      tags: [Admin]
-      summary: Change link status (admin)
-      operationId: adminChangeLinkStatus
-      security:
-        - sessionCookie: []
-      parameters:
-        - $ref: '#/components/parameters/LinkIdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminChangeLinkStatusRequest'
-      responses:
-        '200':
-          description: Link status changed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminLink'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /{code}:
     get:
       tags: [Redirect]
@@ -675,28 +566,6 @@ components:
         user:
           $ref: '#/components/schemas/User'
 
-    PasswordResetRequestBody:
-      type: object
-      required: [email]
-      properties:
-        email:
-          type: string
-          format: email
-          example: user@example.com
-
-    PasswordResetConfirmBody:
-      type: object
-      required: [token, newPassword]
-      properties:
-        token:
-          type: string
-          example: a1b2c3d4e5f6...
-        newPassword:
-          type: string
-          format: password
-          minLength: 8
-          example: NewStrongPassword123
-
     User:
       type: object
       required: [id, email, role, createdAt]
@@ -804,14 +673,6 @@ components:
         status:
           type: string
           enum: [active, inactive]
-
-    AdminChangeLinkStatusRequest:
-      type: object
-      required: [status]
-      properties:
-        status:
-          type: string
-          enum: [active, inactive, blocked]
 
     LinkListResponse:
       type: object

@@ -197,15 +197,6 @@ erDiagram
         datetime created_at
     }
 
-    PASSWORD_RESET_TOKENS {
-        uuid id PK
-        uuid user_id FK
-        string token_hash
-        datetime expires_at
-        datetime used_at
-        datetime created_at
-    }
-
     ADMIN_AUDIT_LOGS {
         uuid id PK
         uuid admin_user_id FK
@@ -217,7 +208,6 @@ erDiagram
 
     USERS ||--o{ LINKS : owns
     LINKS ||--o{ CLICK_EVENTS : collects
-    USERS ||--o{ PASSWORD_RESET_TOKENS : requests
     USERS ||--o{ ADMIN_AUDIT_LOGS : performs
 
 ```
