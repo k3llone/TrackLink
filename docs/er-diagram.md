@@ -17,7 +17,7 @@ erDiagram
     LINKS {
         uuid id PK
         uuid owner_id FK
-        string short_code UK
+        string code UK
         string custom_alias UK
         string target_url
         string status
@@ -36,6 +36,7 @@ erDiagram
         string country_code
         boolean is_unique
         string visitor_fingerprint
+        datetime created_at
     }
 
     PASSWORD_RESET_TOKENS {
@@ -205,8 +206,18 @@ erDiagram
         datetime created_at
     }
 
+    ADMIN_AUDIT_LOGS {
+        uuid id PK
+        uuid admin_user_id FK
+        string action
+        string entity_type
+        uuid entity_id
+        datetime created_at
+    }
+
     USERS ||--o{ LINKS : owns
     LINKS ||--o{ CLICK_EVENTS : collects
     USERS ||--o{ PASSWORD_RESET_TOKENS : requests
+    USERS ||--o{ ADMIN_AUDIT_LOGS : performs
 
 ```

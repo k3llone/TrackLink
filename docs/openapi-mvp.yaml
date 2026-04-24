@@ -21,8 +21,6 @@ tags:
     description: Public short URL redirect flow
   - name: Analytics
     description: Dashboard and basic click analytics
-  - name: Exports
-    description: Statistics export
   - name: Admin
     description: Minimal admin moderation for MVP
 
@@ -424,41 +422,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/exports:
-    post:
-      tags: [Exports]
-      summary: Export link statistics to file
-      operationId: exportStats
-      security:
-        - sessionCookie: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ExportRequest'
-      responses:
-        '200':
-          description: Export file download
-          headers:
-            Content-Disposition:
-              schema:
-                type: string
-              description: Attachment filename
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /api/v1/admin/links:
     get:
       tags: [Admin]
@@ -849,32 +812,6 @@ components:
         status:
           type: string
           enum: [active, inactive, blocked]
-
-    ExportRequest:
-      type: object
-      required: [format]
-      properties:
-        linkIds:
-          type: array
-          items:
-            type: string
-            format: uuid
-          description: Link IDs to export. If omitted, exports all user links.
-          nullable: true
-        from:
-          type: string
-          format: date-time
-          description: Period start (inclusive)
-          nullable: true
-        to:
-          type: string
-          format: date-time
-          description: Period end (inclusive)
-          nullable: true
-        format:
-          type: string
-          enum: [csv, xlsx, pdf]
-          example: csv
 
     LinkListResponse:
       type: object
