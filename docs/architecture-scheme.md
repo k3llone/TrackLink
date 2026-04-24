@@ -39,7 +39,7 @@ flowchart LR
     Frontend[Vue SPA<br/>Auth / Dashboard / Links / Analytics / Admin]
     Backend[Go Backend<br/>Auth / Links / Redirect / Basic Analytics / Admin Block / Limits]
     Postgres[(PostgreSQL<br/>Users / Links / Clicks)]
-    Redis[(Redis<br/>Sessions)]
+    Redis[(Redis<br/>Sessions / Cache)]
     Target[Target URL]
 
     User --> Caddy

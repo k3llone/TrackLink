@@ -21,7 +21,7 @@ erDiagram
         string custom_alias UK
         string target_url
         string status
-        string title
+        datetime last_clicked_at
         datetime created_at
         datetime updated_at
         datetime deleted_at
@@ -178,6 +178,7 @@ erDiagram
         uuid id PK
         uuid owner_id FK
         string code UK
+        string custom_alias UK
         string target_url
         string status
         datetime last_clicked_at
@@ -195,7 +196,17 @@ erDiagram
         datetime created_at
     }
 
+    PASSWORD_RESET_TOKENS {
+        uuid id PK
+        uuid user_id FK
+        string token_hash
+        datetime expires_at
+        datetime used_at
+        datetime created_at
+    }
+
     USERS ||--o{ LINKS : owns
     LINKS ||--o{ CLICK_EVENTS : collects
+    USERS ||--o{ PASSWORD_RESET_TOKENS : requests
 
 ```
