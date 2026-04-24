@@ -1,0 +1,819 @@
+openapi: 3.0.3
+info:
+  title: TrackLink API
+  version: 0.1.0
+  description: |
+    MVP API for TrackLink / LinkCutter.
+    Scope: authentication, link management, redirect, basic analytics, dashboard, minimal admin moderation.
+
+servers:
+  - url: https://tracklink.example.com
+    description: Production example
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Registration, login, logout and current user session
+  - name: Links
+    description: Customer link management
+  - name: Redirect
+    description: Public short URL redirect flow
+  - name: Analytics
+    description: Dashboard and basic click analytics
+  - name: Admin
+    description: Minimal admin moderation for MVP
+
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register customer account
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered and session created
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Session cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login customer or admin
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: User logged in
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Session cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout current user
+      operationId: logoutUser
+      security:
+        - sessionCookie: []
+      responses:
+        '204':
+          description: User logged out
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      operationId: getCurrentUser
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/links:
+    get:
+      tags: [Links]
+      summary: Get current user's links
+      operationId: listLinks
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: q
+          in: query
+          description: Search by short code, alias or target URL
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by link status
+          schema:
+            $ref: '#/components/schemas/LinkStatus'
+      responses:
+        '200':
+          description: Paginated link list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Links]
+      summary: Create short link
+      operationId: createLink
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLinkRequest'
+      responses:
+        '201':
+          description: Link created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Custom alias is already taken
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/links/{linkId}:
+    get:
+      tags: [Links]
+      summary: Get link details
+      operationId: getLink
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LinkIdParam'
+      responses:
+        '200':
+          description: Link details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Links]
+      summary: Update link target URL or status
+      operationId: updateLink
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LinkIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLinkRequest'
+      responses:
+        '200':
+          description: Link updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Links]
+      summary: Soft-delete link
+      operationId: deleteLink
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LinkIdParam'
+      responses:
+        '204':
+          description: Link deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/dashboard:
+    get:
+      tags: [Analytics]
+      summary: Get account dashboard summary
+      operationId: getDashboard
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/links/{linkId}/analytics:
+    get:
+      tags: [Analytics]
+      summary: Get link analytics for selected period
+      operationId: getLinkAnalytics
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LinkIdParam'
+        - name: from
+          in: query
+          description: Period start date-time
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: Period end date-time
+          schema:
+            type: string
+            format: date-time
+        - name: groupBy
+          in: query
+          description: Time grouping for chart
+          schema:
+            type: string
+            enum: [hour, day]
+            default: day
+      responses:
+        '200':
+          description: Link analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkAnalyticsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/links/{linkId}/clicks:
+    get:
+      tags: [Analytics]
+      summary: Get recent click events for link
+      operationId: listRecentClicks
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LinkIdParam'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Recent click events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecentClicksResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/admin/links:
+    get:
+      tags: [Admin]
+      summary: Get links for moderation
+      operationId: adminListLinks
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: q
+          in: query
+          description: Search by short code, target URL or owner email
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/LinkStatus'
+      responses:
+        '200':
+          description: Paginated admin link list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLinkListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/admin/links/{linkId}/block:
+    patch:
+      tags: [Admin]
+      summary: Block short link
+      operationId: adminBlockLink
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LinkIdParam'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminModerationRequest'
+      responses:
+        '200':
+          description: Link blocked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLink'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/admin/links/{linkId}/unblock:
+    patch:
+      tags: [Admin]
+      summary: Unblock short link
+      operationId: adminUnblockLink
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LinkIdParam'
+      responses:
+        '200':
+          description: Link unblocked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLink'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /{code}:
+    get:
+      tags: [Redirect]
+      summary: Open short URL and redirect visitor
+      operationId: redirectByCode
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+            example: abc123
+      responses:
+        '302':
+          description: Redirect to target URL
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+              description: Target URL
+        '403':
+          description: Link is blocked
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          description: Link not found
+          content:
+            text/html:
+              schema:
+                type: string
+        '410':
+          description: Link is inactive or deleted
+          content:
+            text/html:
+              schema:
+                type: string
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: tracklink_session
+
+  parameters:
+    LinkIdParam:
+      name: linkId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSizeParam:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: User is not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: User has no access to this resource
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: StrongPassword123
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: StrongPassword123
+
+    AuthResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      required: [id, email, role, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        createdAt:
+          type: string
+          format: date-time
+
+    UserRole:
+      type: string
+      enum: [customer, admin]
+
+    LinkStatus:
+      type: string
+      enum: [active, inactive, blocked, deleted]
+
+    Link:
+      type: object
+      required:
+        - id
+        - ownerId
+        - code
+        - shortUrl
+        - targetUrl
+        - status
+        - totalClicks
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        ownerId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          example: abc123
+        customAlias:
+          type: string
+          nullable: true
+          example: my-link
+        shortUrl:
+          type: string
+          format: uri
+          example: https://tracklink.example.com/my-link
+        targetUrl:
+          type: string
+          format: uri
+          example: https://example.com/landing
+        status:
+          $ref: '#/components/schemas/LinkStatus'
+        totalClicks:
+          type: integer
+          minimum: 0
+          example: 42
+        lastClickedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateLinkRequest:
+      type: object
+      required: [targetUrl]
+      properties:
+        targetUrl:
+          type: string
+          format: uri
+          example: https://example.com/landing
+        customAlias:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: '^[a-zA-Z0-9_-]+$'
+          nullable: true
+          example: spring-campaign
+
+    UpdateLinkRequest:
+      type: object
+      minProperties: 1
+      properties:
+        targetUrl:
+          type: string
+          format: uri
+          example: https://example.com/new-landing
+        status:
+          type: string
+          enum: [active, inactive]
+
+    LinkListResponse:
+      type: object
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Link'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    DashboardResponse:
+      type: object
+      required: [totalLinks, activeLinks, totalClicks, clicksLast24h, recentLinks]
+      properties:
+        totalLinks:
+          type: integer
+          minimum: 0
+        activeLinks:
+          type: integer
+          minimum: 0
+        totalClicks:
+          type: integer
+          minimum: 0
+        clicksLast24h:
+          type: integer
+          minimum: 0
+        recentLinks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Link'
+
+    LinkAnalyticsResponse:
+      type: object
+      required: [linkId, totalClicks, clicksLast24h, series]
+      properties:
+        linkId:
+          type: string
+          format: uuid
+        totalClicks:
+          type: integer
+          minimum: 0
+        clicksLast24h:
+          type: integer
+          minimum: 0
+        lastClickedAt:
+          type: string
+          format: date-time
+          nullable: true
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeSeriesPoint'
+
+    TimeSeriesPoint:
+      type: object
+      required: [periodStart, clicks]
+      properties:
+        periodStart:
+          type: string
+          format: date-time
+        clicks:
+          type: integer
+          minimum: 0
+
+    RecentClicksResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClickEvent'
+
+    ClickEvent:
+      type: object
+      required: [id, linkId, clickedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        linkId:
+          type: string
+          format: uuid
+        clickedAt:
+          type: string
+          format: date-time
+        referrer:
+          type: string
+          nullable: true
+          example: https://t.me/example
+        userAgent:
+          type: string
+          nullable: true
+          example: Mozilla/5.0
+
+    AdminLink:
+      allOf:
+        - $ref: '#/components/schemas/Link'
+        - type: object
+          required: [ownerEmail]
+          properties:
+            ownerEmail:
+              type: string
+              format: email
+            blockedReason:
+              type: string
+              nullable: true
+
+    AdminLinkListResponse:
+      type: object
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminLink'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    AdminModerationRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          example: Malicious or suspicious target URL
+
+    Pagination:
+      type: object
+      required: [page, pageSize, totalItems, totalPages]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        totalItems:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: validation_error
+            message:
+              type: string
+              example: Invalid request body
+            fields:
+              type: object
+              additionalProperties:
+                type: string
+              nullable: true
