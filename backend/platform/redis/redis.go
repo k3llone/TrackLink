@@ -17,9 +17,6 @@ func NewRedis(cfg config.Config) (*redis.Client, error) {
 	}
 
 	client := redis.NewClient(opt)
-	if err != nil {
-		return nil, fmt.Errorf("redis: %w", err)
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
