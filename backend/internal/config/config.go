@@ -9,7 +9,9 @@ import (
 )
 
 type Config struct {
-	HTTPAddr string
+	HTTPAddr     string
+	POSTGRES_DSN string
+	REDIS_DSN    string
 }
 
 func Load() (Config, error) {
