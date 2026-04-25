@@ -22,19 +22,12 @@ type SessionData struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-type Store interface {
-	Create(ctx context.Context, sessionID string, data SessionData, ttl time.Duration) error
-	Get(ctx context.Context, sessionID string) (SessionData, error)
-	Exists(ctx context.Context, sessionID string) (bool, error)
-	Delete(ctx context.Context, sessionID string) error
-}
-
 type RedisStore struct {
-	client redis.Cmdable
+	client *redis.Client
 	prefix string
 }
 
-func NewRedisStore(client redis.Cmdable) *RedisStore {
+func NewRedisStore(client *redis.Client) *RedisStore {
 	return &RedisStore{
 		client: client,
 		prefix: "session:",
