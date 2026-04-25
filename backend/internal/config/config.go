@@ -20,11 +20,11 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		HTTPAddr: getenv("HTTP_ADDR", ":8080"),
+		HTTPAddr:     getenv("HTTP_ADDR", ":8080"),
+		POSTGRES_DSN: getenv("POSTGRES_DSN", "postgresql://postgres:postgres@localhost:5432/postgres"),
+		REDIS_DSN:    getenv("REDIS_DSN", "redis://localhost:6379"),
 	}
-	if cfg.HTTPAddr == "" {
-		return Config{}, fmt.Errorf("HTTP_ADDR must not be empty")
-	}
+
 	return cfg, nil
 }
 
