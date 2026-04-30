@@ -1,4 +1,4 @@
-package httpapi
+package httpserver
 
 import (
 	"github.com/go-chi/chi/v5"

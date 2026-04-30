@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"tracklink/internal/config"
-	"tracklink/internal/httpapi"
+	httpserver "tracklink/internal/http"
 	"tracklink/internal/platform/db"
 	platformredis "tracklink/internal/platform/redis"
 	"tracklink/internal/platform/session"
@@ -30,7 +30,7 @@ func Run() error {
 
 	sessionStore := session.NewRedisStore(redisClient)
 
-	r := httpapi.NewRouter(httpapi.Deps{
+	r := httpserver.NewRouter(httpserver.Deps{
 		DB:       postgresDB,
 		Redis:    redisClient,
 		Sessions: sessionStore,
