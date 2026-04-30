@@ -6,7 +6,10 @@ import (
 	"net/http"
 
 	"tracklink/internal/config"
-	"tracklink/internal/httpapi"
+	httpserver "tracklink/internal/http"
+	"tracklink/internal/platform/db"
+	platformredis "tracklink/internal/platform/redis"
+	"tracklink/internal/platform/session"
 )
 
 func Run() error {
@@ -15,7 +18,23 @@ func Run() error {
 		return fmt.Errorf("config: %w", err)
 	}
 
-	r := httpapi.NewRouter()
+	postgresDB, err := db.NewPostgreSQL(cfg)
+	if err != nil {
+		return fmt.Errorf("postgres init: %w", err)
+	}
+
+	redisClient, err := platformredis.NewRedis(cfg)
+	if err != nil {
+		return fmt.Errorf("redis init: %w", err)
+	}
+
+	sessionStore := session.NewRedisStore(redisClient)
+
+	r := httpserver.NewRouter(httpserver.Deps{
+		DB:       postgresDB,
+		Redis:    redisClient,
+		Sessions: sessionStore,
+	})
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr,
 		Handler: r,
