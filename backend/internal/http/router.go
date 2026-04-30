@@ -3,12 +3,14 @@ package httpserver
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
+	"tracklink/internal/config"
 	"tracklink/internal/modules/accounts"
 	"tracklink/internal/platform/session"
 )
@@ -17,6 +19,7 @@ type Deps struct {
 	DB       *gorm.DB
 	Redis    *redis.Client
 	Sessions *session.RedisStore
+	Config   config.Config
 }
 
 func NewRouter(deps Deps) *chi.Mux {
@@ -37,8 +40,13 @@ func NewRouter(deps Deps) *chi.Mux {
 
 	userRepo := accounts.NewGormUserRepository(deps.DB)
 	accountService := accounts.NewService(userRepo)
-	accountHandler := accounts.NewHandler(accountService)
+	accountHandler := accounts.NewHandler(accountService, deps.Sessions, accounts.CookieSettings{
+		Name:   "tracklink_session",
+		TTL:    defaultSessionTTL(deps.Config.SessionTTL),
+		Secure: deps.Config.SessionCookieSecure,
+	})
 	apiV1.Post("/auth/register", accountHandler.Register)
+	apiV1.Post("/auth/login", accountHandler.Login)
 	r.Mount("/api/v1", apiV1)
 
 	r.Get("/{code}", func(w http.ResponseWriter, _ *http.Request) {
@@ -47,4 +55,12 @@ func NewRouter(deps Deps) *chi.Mux {
 	})
 
 	return r
+}
+
+func defaultSessionTTL(ttl time.Duration) time.Duration {
+	if ttl <= 0 {
+		return 24 * time.Hour
+	}
+
+	return ttl
 }

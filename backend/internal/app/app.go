@@ -34,6 +34,7 @@ func Run() error {
 		DB:       postgresDB,
 		Redis:    redisClient,
 		Sessions: sessionStore,
+		Config:   cfg,
 	})
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr,

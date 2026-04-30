@@ -12,11 +12,13 @@ import (
 )
 
 type Config struct {
-	HTTPAddr      string
-	PublicURL     string
-	DatabaseURL   string
-	RedisAddr     string
-	SessionSecret string
+	HTTPAddr            string
+	PublicURL           string
+	DatabaseURL         string
+	RedisAddr           string
+	SessionSecret       string
+	SessionTTL          time.Duration
+	SessionCookieSecure bool
 
 	PostgresPingTimeout time.Duration
 }
@@ -27,15 +29,20 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		HTTPAddr:      getenv("HTTP_ADDR", ":8080"),
-		PublicURL:     getenv("PUBLIC_URL", "http://localhost:8080"),
-		DatabaseURL:   getenvAny([]string{"DATABASE_URL", "POSTGRES_DSN"}, "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable"),
-		RedisAddr:     normalizeRedisAddr(getenvAny([]string{"REDIS_ADDR", "REDIS_DSN"}, "localhost:6379")),
-		SessionSecret: getenv("SESSION_SECRET", "dev-session-secret"),
+		HTTPAddr:            getenv("HTTP_ADDR", ":8080"),
+		PublicURL:           getenv("PUBLIC_URL", "http://localhost:8080"),
+		DatabaseURL:         getenvAny([]string{"DATABASE_URL", "POSTGRES_DSN"}, "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable"),
+		RedisAddr:           normalizeRedisAddr(getenvAny([]string{"REDIS_ADDR", "REDIS_DSN"}, "localhost:6379")),
+		SessionSecret:       getenv("SESSION_SECRET", "dev-session-secret"),
+		SessionCookieSecure: getenvBool("SESSION_COOKIE_SECURE", false),
 	}
 
 	var err error
 	cfg.PostgresPingTimeout, err = getenvDuration("POSTGRES_PING_TIMEOUT", 3*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.SessionTTL, err = getenvDuration("SESSION_TTL", 24*time.Hour)
 	if err != nil {
 		return Config{}, err
 	}
@@ -57,6 +64,18 @@ func getenv(key, defaultVal string) string {
 		return v
 	}
 	return defaultVal
+}
+
+func getenvBool(key string, defaultVal bool) bool {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return defaultVal
+	}
+
+	return strings.EqualFold(raw, "1") ||
+		strings.EqualFold(raw, "true") ||
+		strings.EqualFold(raw, "yes") ||
+		strings.EqualFold(raw, "on")
 }
 
 func normalizeRedisAddr(raw string) string {

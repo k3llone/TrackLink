@@ -10,9 +10,11 @@ import (
 )
 
 var ErrEmailAlreadyExists = errors.New("email already exists")
+var ErrUserNotFound = errors.New("user not found")
 
 type UserRepository interface {
 	Create(ctx context.Context, user *User) error
+	FindByEmail(ctx context.Context, email string) (User, error)
 }
 
 type GormUserRepository struct {
@@ -31,6 +33,21 @@ func (r *GormUserRepository) Create(ctx context.Context, user *User) error {
 		return fmt.Errorf("create user: %w", err)
 	}
 	return nil
+}
+
+func (r *GormUserRepository) FindByEmail(ctx context.Context, email string) (User, error) {
+	var user User
+	err := r.db.WithContext(ctx).
+		Where("email = ?", email).
+		First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return User{}, ErrUserNotFound
+		}
+		return User{}, fmt.Errorf("find user by email: %w", err)
+	}
+
+	return user, nil
 }
 
 func isUniqueViolation(err error) bool {
