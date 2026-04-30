@@ -10,7 +10,7 @@ import (
 )
 
 func NewPostgreSQL(cfg config.Config) (*gorm.DB, error) {
-	db, err := gorm.Open(postgres.Open(cfg.POSTGRES_DSN), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(cfg.DatabaseURL), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("postgresql: %w", err)
 	}

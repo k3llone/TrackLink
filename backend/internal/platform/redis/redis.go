@@ -10,7 +10,7 @@ import (
 )
 
 func NewRedis(cfg config.Config) (*redis.Client, error) {
-	opt, err := redis.ParseURL(cfg.REDIS_DSN)
+	opt, err := redis.ParseURL(cfg.RedisAddr)
 
 	if err != nil {
 		return nil, fmt.Errorf("redis: %w", err)
