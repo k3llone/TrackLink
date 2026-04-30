@@ -2,6 +2,7 @@ package accounts
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -76,5 +77,26 @@ func TestServiceRegisterValidation(t *testing.T) {
 	}
 	if _, ok := fields["password"]; !ok {
 		t.Fatal("expected password validation error")
+	}
+}
+
+func TestServiceRegisterDuplicateEmail(t *testing.T) {
+	repo := fakeRepo{
+		createFn: func(_ context.Context, _ *User) error {
+			return ErrEmailAlreadyExists
+		},
+	}
+
+	service := NewService(repo)
+	_, fields, err := service.Register(context.Background(), RegisterRequest{
+		Email:    "new@example.com",
+		Password: "StrongPass123",
+	})
+
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("expected ErrConflict, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil validation fields, got %v", fields)
 	}
 }

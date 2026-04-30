@@ -15,6 +15,7 @@ const (
 )
 
 var ErrValidation = errors.New("validation failed")
+var ErrConflict = errors.New("resource conflict")
 
 type Service struct {
 	repo UserRepository
@@ -45,6 +46,9 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (User, map[
 	}
 
 	if err := s.repo.Create(ctx, &user); err != nil {
+		if errors.Is(err, ErrEmailAlreadyExists) {
+			return User{}, nil, ErrConflict
+		}
 		return User{}, nil, err
 	}
 

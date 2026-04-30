@@ -62,3 +62,30 @@ func TestHandlerRegisterInvalidBody(t *testing.T) {
 		t.Fatalf("unexpected error code: %s", resp.Error.Code)
 	}
 }
+
+func TestHandlerRegisterDuplicateEmail(t *testing.T) {
+	repo := fakeRepo{
+		createFn: func(_ context.Context, _ *User) error {
+			return ErrEmailAlreadyExists
+		},
+	}
+
+	handler := NewHandler(NewService(repo))
+	body := `{"email":"new@example.com","password":"StrongPass123"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("expected status %d, got %d", http.StatusConflict, rr.Code)
+	}
+
+	var resp ErrorResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Error.Code != "email_already_exists" {
+		t.Fatalf("unexpected error code: %s", resp.Error.Code)
+	}
+}

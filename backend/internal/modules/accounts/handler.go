@@ -28,6 +28,10 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "validation_error", "Invalid request body", fields)
 			return
 		}
+		if errors.Is(err, ErrConflict) {
+			writeError(w, http.StatusConflict, "email_already_exists", "Email already exists", nil)
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "Internal server error", nil)
 		return
 	}
