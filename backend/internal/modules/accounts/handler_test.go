@@ -16,6 +16,7 @@ import (
 
 type fakeSessionStore struct {
 	createFn func(ctx context.Context, sessionID string, data session.SessionData, ttl time.Duration) error
+	deleteFn func(ctx context.Context, sessionID string) error
 }
 
 func (f fakeSessionStore) Create(ctx context.Context, sessionID string, data session.SessionData, ttl time.Duration) error {
@@ -23,6 +24,13 @@ func (f fakeSessionStore) Create(ctx context.Context, sessionID string, data ses
 		return nil
 	}
 	return f.createFn(ctx, sessionID, data, ttl)
+}
+
+func (f fakeSessionStore) Delete(ctx context.Context, sessionID string) error {
+	if f.deleteFn == nil {
+		return nil
+	}
+	return f.deleteFn(ctx, sessionID)
 }
 
 func TestHandlerRegisterSuccess(t *testing.T) {
@@ -244,6 +252,67 @@ func TestHandlerLoginSessionStoreError(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	handler.Login(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rr.Code)
+	}
+}
+
+func TestHandlerLogoutSuccess(t *testing.T) {
+	deletedSessionID := ""
+	handler := NewHandler(NewService(fakeRepo{}), fakeSessionStore{
+		deleteFn: func(_ context.Context, sessionID string) error {
+			deletedSessionID = sessionID
+			return nil
+		},
+	}, CookieSettings{
+		Name:   "tracklink_session",
+		TTL:    24 * time.Hour,
+		Secure: false,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "tracklink_session", Value: "session-123"})
+	rr := httptest.NewRecorder()
+
+	handler.Logout(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, rr.Code)
+	}
+	if deletedSessionID != "session-123" {
+		t.Fatalf("expected deleted session id session-123, got %s", deletedSessionID)
+	}
+
+	var hasClearedCookie bool
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "tracklink_session" {
+			hasClearedCookie = true
+			if c.MaxAge != -1 {
+				t.Fatalf("expected MaxAge -1, got %d", c.MaxAge)
+			}
+			if c.Value != "" {
+				t.Fatalf("expected empty cookie value, got %q", c.Value)
+			}
+		}
+	}
+	if !hasClearedCookie {
+		t.Fatal("expected cleared tracklink_session cookie")
+	}
+}
+
+func TestHandlerLogoutDeleteError(t *testing.T) {
+	handler := NewHandler(NewService(fakeRepo{}), fakeSessionStore{
+		deleteFn: func(_ context.Context, _ string) error {
+			return errors.New("delete failed")
+		},
+	}, CookieSettings{Name: "tracklink_session"})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "tracklink_session", Value: "session-123"})
+	rr := httptest.NewRecorder()
+
+	handler.Logout(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rr.Code)

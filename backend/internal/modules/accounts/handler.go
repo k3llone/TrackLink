@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
+	httpmiddleware "tracklink/internal/http/middleware"
 	"tracklink/internal/platform/session"
 )
 
@@ -16,6 +18,7 @@ const defaultSessionCookieName = "tracklink_session"
 
 type SessionStore interface {
 	Create(ctx context.Context, sessionID string, data session.SessionData, ttl time.Duration) error
+	Delete(ctx context.Context, sessionID string) error
 }
 
 type CookieSettings struct {
@@ -140,6 +143,41 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	if h.sessions == nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Internal server error", nil)
+		return
+	}
+
+	sessionID, ok := httpmiddleware.SessionIDFromContext(r.Context())
+	if !ok || strings.TrimSpace(sessionID) == "" {
+		cookie, err := r.Cookie(h.cookieConfig.Name)
+		if err != nil || strings.TrimSpace(cookie.Value) == "" {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "Unauthorized", nil)
+			return
+		}
+		sessionID = strings.TrimSpace(cookie.Value)
+	}
+
+	if err := h.sessions.Delete(r.Context(), sessionID); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Internal server error", nil)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     h.cookieConfig.Name,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0).UTC(),
+		HttpOnly: true,
+		Secure:   h.cookieConfig.Secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string, fields map[string]string) {
