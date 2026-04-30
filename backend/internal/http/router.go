@@ -9,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
+	"tracklink/internal/modules/accounts"
 	"tracklink/internal/platform/session"
 )
 
@@ -33,6 +34,11 @@ func NewRouter(deps Deps) *chi.Mux {
 	apiV1.NotFound(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 	})
+
+	userRepo := accounts.NewGormUserRepository(deps.DB)
+	accountService := accounts.NewService(userRepo)
+	accountHandler := accounts.NewHandler(accountService)
+	apiV1.Post("/auth/register", accountHandler.Register)
 	r.Mount("/api/v1", apiV1)
 
 	r.Get("/{code}", func(w http.ResponseWriter, _ *http.Request) {
