@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,6 +54,40 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, mapLinkToResponse(link, h.publicURL))
 }
 
+func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
+	userID, _, ok := shared.CurrentUserFromContext(r.Context())
+	if !ok || strings.TrimSpace(userID) == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Unauthorized", nil)
+		return
+	}
+
+	query, fields := parseListLinksQuery(r)
+	if len(fields) > 0 {
+		writeError(w, http.StatusBadRequest, "validation_error", "Invalid query parameters", fields)
+		return
+	}
+
+	links, pagination, serviceFields, err := h.service.List(r.Context(), userID, query)
+	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusBadRequest, "validation_error", "Invalid query parameters", serviceFields)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Internal server error", nil)
+		return
+	}
+
+	items := make([]LinkResponse, 0, len(links))
+	for _, link := range links {
+		items = append(items, mapLinkToResponse(link, h.publicURL))
+	}
+
+	writeJSON(w, http.StatusOK, LinkListResponse{
+		Items:      items,
+		Pagination: pagination,
+	})
+}
+
 func mapLinkToResponse(link Link, publicURL string) LinkResponse {
 	shortPath := link.Code
 	if link.CustomAlias != nil && strings.TrimSpace(*link.CustomAlias) != "" {
@@ -94,4 +129,43 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func parseListLinksQuery(r *http.Request) (ListLinksQuery, map[string]string) {
+	q := r.URL.Query()
+
+	page := defaultListPage
+	pageSize := defaultListPageSize
+	fields := map[string]string{}
+
+	if rawPage := strings.TrimSpace(q.Get("page")); rawPage != "" {
+		v, err := strconv.Atoi(rawPage)
+		if err != nil {
+			fields["page"] = "Page must be an integer"
+		} else if v < 1 {
+			fields["page"] = "Page must be greater than or equal to 1"
+		} else {
+			page = v
+		}
+	}
+
+	if rawPageSize := strings.TrimSpace(q.Get("pageSize")); rawPageSize != "" {
+		v, err := strconv.Atoi(rawPageSize)
+		if err != nil {
+			fields["pageSize"] = "Page size must be an integer"
+		} else if v < 1 {
+			fields["pageSize"] = "Page size must be greater than or equal to 1"
+		} else if v > maxListPageSize {
+			pageSize = maxListPageSize
+		} else {
+			pageSize = v
+		}
+	}
+
+	return ListLinksQuery{
+		Page:     page,
+		PageSize: pageSize,
+		Q:        strings.TrimSpace(q.Get("q")),
+		Status:   strings.TrimSpace(q.Get("status")),
+	}, fields
 }
