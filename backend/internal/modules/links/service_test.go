@@ -1,0 +1,280 @@
+package links
+
+import (
+	"context"
+	"errors"
+	"testing"
+)
+
+type fakeRepository struct {
+	createFn              func(ctx context.Context, link *Link) error
+	existsByCodeFn        func(ctx context.Context, code string) (bool, error)
+	existsByCustomAliasFn func(ctx context.Context, customAlias string) (bool, error)
+}
+
+func (f fakeRepository) Create(ctx context.Context, link *Link) error {
+	if f.createFn == nil {
+		return nil
+	}
+
+	return f.createFn(ctx, link)
+}
+
+func (f fakeRepository) ExistsByCode(ctx context.Context, code string) (bool, error) {
+	if f.existsByCodeFn == nil {
+		return false, nil
+	}
+
+	return f.existsByCodeFn(ctx, code)
+}
+
+func (f fakeRepository) ExistsByCustomAlias(ctx context.Context, customAlias string) (bool, error) {
+	if f.existsByCustomAliasFn == nil {
+		return false, nil
+	}
+
+	return f.existsByCustomAliasFn(ctx, customAlias)
+}
+
+func TestServiceCreateSuccess(t *testing.T) {
+	repo := fakeRepository{
+		createFn: func(_ context.Context, link *Link) error {
+			if link.OwnerID != "c7364dce-f6fd-4ec4-b7bc-f2a95f2f9de8" {
+				t.Fatalf("unexpected owner id in create: %s", link.OwnerID)
+			}
+			if link.TargetURL != "https://example.com/landing" {
+				t.Fatalf("unexpected target url in create: %s", link.TargetURL)
+			}
+			if link.Status != StatusActive {
+				t.Fatalf("unexpected status in create: %s", link.Status)
+			}
+			link.ID = "9e1f66cf-4f5c-421f-97fa-bf4a9f34ef7a"
+			return nil
+		},
+	}
+
+	service := NewService(repo)
+	link, fields, err := service.Create(context.Background(), "c7364dce-f6fd-4ec4-b7bc-f2a95f2f9de8", CreateLinkRequest{
+		TargetURL: "https://example.com/landing",
+	})
+
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+	if link.ID == "" {
+		t.Fatal("expected link ID to be set")
+	}
+	if link.Status != StatusActive {
+		t.Fatalf("expected status %q, got %q", StatusActive, link.Status)
+	}
+	if link.Code == "" {
+		t.Fatal("expected code to be generated")
+	}
+}
+
+func TestServiceCreateRetriesOnCodeCollision(t *testing.T) {
+	callCount := 0
+	repo := fakeRepository{
+		existsByCodeFn: func(_ context.Context, code string) (bool, error) {
+			return code == "COLLIDE", nil
+		},
+	}
+	service := NewService(repo)
+	service.generate = func(_ int) (string, error) {
+		callCount++
+		if callCount == 1 {
+			return "COLLIDE", nil
+		}
+		return "UNIQUE1", nil
+	}
+
+	link, fields, err := service.Create(context.Background(), "owner-1", CreateLinkRequest{
+		TargetURL: "https://example.com",
+	})
+
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+	if link.Code != "UNIQUE1" {
+		t.Fatalf("expected UNIQUE1, got %s", link.Code)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 generator calls, got %d", callCount)
+	}
+}
+
+func TestServiceCreateValidation(t *testing.T) {
+	repo := fakeRepository{
+		createFn: func(_ context.Context, _ *Link) error {
+			t.Fatal("repo must not be called on validation errors")
+			return nil
+		},
+	}
+
+	service := NewService(repo)
+	_, fields, err := service.Create(context.Background(), "", CreateLinkRequest{
+		TargetURL: " ",
+	})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+	if fields == nil {
+		t.Fatal("expected validation fields")
+	}
+	if _, ok := fields["targetUrl"]; !ok {
+		t.Fatal("expected targetUrl field validation error")
+	}
+	if _, ok := fields["ownerId"]; !ok {
+		t.Fatal("expected ownerId field validation error")
+	}
+}
+
+func TestServiceCreateTargetURLValidation(t *testing.T) {
+	testCases := []struct {
+		name      string
+		targetURL string
+		wantError bool
+	}{
+		{name: "relative URL", targetURL: "/landing", wantError: true},
+		{name: "missing host", targetURL: "https://", wantError: true},
+		{name: "unsupported scheme", targetURL: "ftp://example.com", wantError: true},
+		{name: "valid https URL", targetURL: "https://example.com/path", wantError: false},
+	}
+
+	repo := fakeRepository{
+		createFn: func(_ context.Context, _ *Link) error {
+			return nil
+		},
+	}
+	service := NewService(repo)
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			_, fields, err := service.Create(context.Background(), "c7364dce-f6fd-4ec4-b7bc-f2a95f2f9de8", CreateLinkRequest{
+				TargetURL: tc.targetURL,
+			})
+
+			if tc.wantError {
+				if !errors.Is(err, ErrValidation) {
+					t.Fatalf("expected ErrValidation, got %v", err)
+				}
+				if _, ok := fields["targetUrl"]; !ok {
+					t.Fatalf("expected targetUrl field error, got %v", fields)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+			if fields != nil {
+				t.Fatalf("expected nil fields, got %v", fields)
+			}
+		})
+	}
+}
+
+func TestServiceCreateReturnsErrorWhenCodeGenerationAttemptsExhausted(t *testing.T) {
+	repo := fakeRepository{
+		existsByCodeFn: func(_ context.Context, _ string) (bool, error) {
+			return true, nil
+		},
+	}
+	service := NewService(repo)
+	service.generate = func(_ int) (string, error) {
+		return "always1", nil
+	}
+
+	_, _, err := service.Create(context.Background(), "owner-1", CreateLinkRequest{
+		TargetURL: "https://example.com",
+	})
+	if !errors.Is(err, ErrCodeGenerationExhausted) {
+		t.Fatalf("expected ErrCodeGenerationExhausted, got %v", err)
+	}
+}
+
+func TestServiceCreateReturnsConflictWhenCustomAliasExists(t *testing.T) {
+	createCalled := false
+	repo := fakeRepository{
+		createFn: func(_ context.Context, _ *Link) error {
+			createCalled = true
+			return nil
+		},
+		existsByCustomAliasFn: func(_ context.Context, customAlias string) (bool, error) {
+			if customAlias == "taken-alias" {
+				return true, nil
+			}
+			return false, nil
+		},
+	}
+	service := NewService(repo)
+
+	_, _, err := service.Create(context.Background(), "owner-1", CreateLinkRequest{
+		TargetURL:   "https://example.com",
+		CustomAlias: strPtr("taken-alias"),
+	})
+	if !errors.Is(err, ErrAliasAlreadyExists) {
+		t.Fatalf("expected ErrAliasAlreadyExists, got %v", err)
+	}
+	if createCalled {
+		t.Fatal("create should not be called when alias is already taken")
+	}
+}
+
+func TestServiceCreateCustomAliasValidation(t *testing.T) {
+	testCases := []struct {
+		name       string
+		customAlias *string
+		wantError  bool
+	}{
+		{name: "too short", customAlias: strPtr("ab"), wantError: true},
+		{name: "too long", customAlias: strPtr("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), wantError: true},
+		{name: "invalid chars", customAlias: strPtr("bad alias!"), wantError: true},
+		{name: "valid alias", customAlias: strPtr("spring-campaign_2026"), wantError: false},
+		{name: "trimmed empty alias", customAlias: strPtr("   "), wantError: false},
+	}
+
+	repo := fakeRepository{}
+	service := NewService(repo)
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			link, fields, err := service.Create(context.Background(), "owner-1", CreateLinkRequest{
+				TargetURL:   "https://example.com",
+				CustomAlias: tc.customAlias,
+			})
+
+			if tc.wantError {
+				if !errors.Is(err, ErrValidation) {
+					t.Fatalf("expected ErrValidation, got %v", err)
+				}
+				if _, ok := fields["customAlias"]; !ok {
+					t.Fatalf("expected customAlias validation error, got %v", fields)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+			if fields != nil {
+				t.Fatalf("expected nil fields, got %v", fields)
+			}
+			if tc.customAlias != nil && *tc.customAlias == "   " && link.CustomAlias != nil {
+				t.Fatalf("expected normalized empty alias to become nil, got %v", *link.CustomAlias)
+			}
+		})
+	}
+}
+
+func strPtr(v string) *string {
+	return &v
+}

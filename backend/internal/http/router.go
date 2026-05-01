@@ -14,6 +14,7 @@ import (
 	"tracklink/internal/config"
 	httpmiddleware "tracklink/internal/http/middleware"
 	"tracklink/internal/modules/accounts"
+	"tracklink/internal/modules/links"
 	"tracklink/internal/platform/session"
 )
 
@@ -54,10 +55,14 @@ func NewRouter(deps Deps) *chi.Mux {
 		Secure: deps.Config.SessionCookieSecure,
 	})
 	authMiddleware := httpmiddleware.NewAuth(deps.Sessions)
+	linkRepo := links.NewGormRepository(deps.DB)
+	linkService := links.NewService(linkRepo)
+	linkHandler := links.NewHandler(linkService, deps.Config.PublicURL)
 	apiV1.Post("/auth/register", accountHandler.Register)
 	apiV1.Post("/auth/login", accountHandler.Login)
 	apiV1.With(authMiddleware.RequireAuth).Post("/auth/logout", accountHandler.Logout)
 	apiV1.With(authMiddleware.RequireAuth).Get("/me", accountHandler.Me)
+	apiV1.With(authMiddleware.RequireAuth).Post("/links", linkHandler.Create)
 	r.Mount("/api/v1", apiV1)
 
 	r.Get("/{code}", func(w http.ResponseWriter, _ *http.Request) {
