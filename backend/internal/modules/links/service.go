@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -25,6 +26,8 @@ func (s *Service) Create(ctx context.Context, ownerID string, req CreateLinkRequ
 	fields := map[string]string{}
 	if targetURL == "" {
 		fields["targetUrl"] = "Target URL is required"
+	} else if !isValidTargetURL(targetURL) {
+		fields["targetUrl"] = "Target URL must be a valid absolute URL with http or https scheme"
 	}
 	if ownerID == "" {
 		fields["ownerId"] = "Owner ID is required"
@@ -67,4 +70,19 @@ func generateCode(length int) (string, error) {
 	}
 
 	return encoded[:length], nil
+}
+
+func isValidTargetURL(raw string) bool {
+	parsed, err := url.ParseRequestURI(raw)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	if strings.TrimSpace(parsed.Host) == "" {
+		return false
+	}
+
+	return true
 }

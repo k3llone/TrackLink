@@ -82,3 +82,38 @@ func TestHandlerCreateUnauthorizedWithoutSessionData(t *testing.T) {
 	}
 }
 
+func TestHandlerCreateInvalidTargetURL(t *testing.T) {
+	handler := NewHandler(NewService(fakeRepository{}), "https://tracklink.example.com")
+	auth := httpmiddleware.NewAuth(fakeSessionStore{
+		getFn: func(_ context.Context, sessionID string) (session.SessionData, error) {
+			if sessionID != "session-1" {
+				return session.SessionData{}, errors.New("unknown session")
+			}
+			return session.SessionData{
+				UserID: "b3f4c113-6f22-42f2-8b45-6e88b2f9b71a",
+				Role:   "customer",
+			}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/links", strings.NewReader(`{"targetUrl":"not-an-url"}`))
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+	rr := httptest.NewRecorder()
+	auth.RequireAuth(http.HandlerFunc(handler.Create)).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	}
+
+	var resp ErrorResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Error.Code != "validation_error" {
+		t.Fatalf("unexpected error code: %s", resp.Error.Code)
+	}
+	if _, ok := resp.Error.Fields["targetUrl"]; !ok {
+		t.Fatalf("expected targetUrl field error, got %v", resp.Error.Fields)
+	}
+}
+
