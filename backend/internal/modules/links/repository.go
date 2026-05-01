@@ -2,6 +2,7 @@ package links
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"gorm.io/gorm"
@@ -9,6 +10,7 @@ import (
 
 type Repository interface {
 	Create(ctx context.Context, link *Link) error
+	ExistsByCode(ctx context.Context, code string) (bool, error)
 }
 
 type GormRepository struct {
@@ -25,4 +27,20 @@ func (r *GormRepository) Create(ctx context.Context, link *Link) error {
 	}
 
 	return nil
+}
+
+func (r *GormRepository) ExistsByCode(ctx context.Context, code string) (bool, error) {
+	var link Link
+	err := r.db.WithContext(ctx).
+		Select("id").
+		Where("code = ?", code).
+		First(&link).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("check link code existence: %w", err)
+	}
+
+	return true, nil
 }

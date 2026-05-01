@@ -12,13 +12,23 @@ import (
 )
 
 var ErrValidation = errors.New("validation failed")
+var ErrCodeGenerationExhausted = errors.New("code generation attempts exhausted")
+
+const (
+	codeLength          = 6
+	maxCodeGenAttempts  = 10
+)
 
 type Service struct {
-	repo Repository
+	repo      Repository
+	generate  func(length int) (string, error)
 }
 
 func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+	return &Service{
+		repo:     repo,
+		generate: generateCode,
+	}
 }
 
 func (s *Service) Create(ctx context.Context, ownerID string, req CreateLinkRequest) (Link, map[string]string, error) {
@@ -36,9 +46,9 @@ func (s *Service) Create(ctx context.Context, ownerID string, req CreateLinkRequ
 		return Link{}, fields, ErrValidation
 	}
 
-	code, err := generateCode(6)
+	code, err := s.generateUniqueCode(ctx)
 	if err != nil {
-		return Link{}, nil, fmt.Errorf("generate code: %w", err)
+		return Link{}, nil, err
 	}
 
 	link := Link{
@@ -70,6 +80,25 @@ func generateCode(length int) (string, error) {
 	}
 
 	return encoded[:length], nil
+}
+
+func (s *Service) generateUniqueCode(ctx context.Context) (string, error) {
+	for attempt := 0; attempt < maxCodeGenAttempts; attempt++ {
+		code, err := s.generate(codeLength)
+		if err != nil {
+			return "", fmt.Errorf("generate code: %w", err)
+		}
+
+		exists, err := s.repo.ExistsByCode(ctx, code)
+		if err != nil {
+			return "", err
+		}
+		if !exists {
+			return code, nil
+		}
+	}
+
+	return "", ErrCodeGenerationExhausted
 }
 
 func isValidTargetURL(raw string) bool {

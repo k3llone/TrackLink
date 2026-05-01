@@ -7,7 +7,8 @@ import (
 )
 
 type fakeRepository struct {
-	createFn func(ctx context.Context, link *Link) error
+	createFn       func(ctx context.Context, link *Link) error
+	existsByCodeFn func(ctx context.Context, code string) (bool, error)
 }
 
 func (f fakeRepository) Create(ctx context.Context, link *Link) error {
@@ -16,6 +17,14 @@ func (f fakeRepository) Create(ctx context.Context, link *Link) error {
 	}
 
 	return f.createFn(ctx, link)
+}
+
+func (f fakeRepository) ExistsByCode(ctx context.Context, code string) (bool, error) {
+	if f.existsByCodeFn == nil {
+		return false, nil
+	}
+
+	return f.existsByCodeFn(ctx, code)
 }
 
 func TestServiceCreateSuccess(t *testing.T) {
@@ -45,6 +54,40 @@ func TestServiceCreateSuccess(t *testing.T) {
 	}
 	if link.Code == "" {
 		t.Fatal("expected code to be generated")
+	}
+}
+
+func TestServiceCreateRetriesOnCodeCollision(t *testing.T) {
+	callCount := 0
+	repo := fakeRepository{
+		existsByCodeFn: func(_ context.Context, code string) (bool, error) {
+			return code == "COLLIDE", nil
+		},
+	}
+	service := NewService(repo)
+	service.generate = func(_ int) (string, error) {
+		callCount++
+		if callCount == 1 {
+			return "COLLIDE", nil
+		}
+		return "UNIQUE1", nil
+	}
+
+	link, fields, err := service.Create(context.Background(), "owner-1", CreateLinkRequest{
+		TargetURL: "https://example.com",
+	})
+
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+	if link.Code != "UNIQUE1" {
+		t.Fatalf("expected UNIQUE1, got %s", link.Code)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 generator calls, got %d", callCount)
 	}
 }
 
@@ -117,5 +160,24 @@ func TestServiceCreateTargetURLValidation(t *testing.T) {
 				t.Fatalf("expected nil fields, got %v", fields)
 			}
 		})
+	}
+}
+
+func TestServiceCreateReturnsErrorWhenCodeGenerationAttemptsExhausted(t *testing.T) {
+	repo := fakeRepository{
+		existsByCodeFn: func(_ context.Context, _ string) (bool, error) {
+			return true, nil
+		},
+	}
+	service := NewService(repo)
+	service.generate = func(_ int) (string, error) {
+		return "always1", nil
+	}
+
+	_, _, err := service.Create(context.Background(), "owner-1", CreateLinkRequest{
+		TargetURL: "https://example.com",
+	})
+	if !errors.Is(err, ErrCodeGenerationExhausted) {
+		t.Fatalf("expected ErrCodeGenerationExhausted, got %v", err)
 	}
 }
