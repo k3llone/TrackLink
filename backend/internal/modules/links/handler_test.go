@@ -507,3 +507,94 @@ func TestHandlerUpdateStatusConflictForBlockedOrDeleted(t *testing.T) {
 	}
 }
 
+func TestHandlerDeleteSuccess(t *testing.T) {
+	repo := fakeRepository{
+		getByIDAndOwnerFn: func(_ context.Context, linkID, ownerID string) (Link, error) {
+			return Link{ID: linkID, OwnerID: ownerID, Status: StatusActive}, nil
+		},
+		softDeleteFn: func(_ context.Context, _, _ string) error {
+			return nil
+		},
+	}
+	handler := NewHandler(NewService(repo), "https://tracklink.example.com")
+	auth := httpmiddleware.NewAuth(fakeSessionStore{
+		getFn: func(_ context.Context, _ string) (session.SessionData, error) {
+			return session.SessionData{UserID: "owner-1", Role: "customer"}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/links/link-1", nil)
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+	rr := httptest.NewRecorder()
+	testRouter := chi.NewRouter()
+	testRouter.With(auth.RequireAuth).Delete("/api/v1/links/{linkId}", handler.Delete)
+	testRouter.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, rr.Code)
+	}
+	if strings.TrimSpace(rr.Body.String()) != "" {
+		t.Fatalf("expected empty body for 204, got %q", rr.Body.String())
+	}
+}
+
+func TestHandlerDeleteNotFound(t *testing.T) {
+	repo := fakeRepository{
+		getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
+			return Link{}, ErrLinkNotFound
+		},
+	}
+	handler := NewHandler(NewService(repo), "https://tracklink.example.com")
+	auth := httpmiddleware.NewAuth(fakeSessionStore{
+		getFn: func(_ context.Context, _ string) (session.SessionData, error) {
+			return session.SessionData{UserID: "owner-1", Role: "customer"}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/links/missing", nil)
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+	rr := httptest.NewRecorder()
+	testRouter := chi.NewRouter()
+	testRouter.With(auth.RequireAuth).Delete("/api/v1/links/{linkId}", handler.Delete)
+	testRouter.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, rr.Code)
+	}
+}
+
+func TestHandlerDeleteIdempotentForAlreadyDeletedLink(t *testing.T) {
+	now := time.Now().UTC()
+	repo := fakeRepository{
+		getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
+			return Link{
+				ID:        "link-1",
+				OwnerID:   "owner-1",
+				Status:    StatusDeleted,
+				DeletedAt: &now,
+			}, nil
+		},
+		softDeleteFn: func(_ context.Context, _, _ string) error {
+			t.Fatal("softDelete should not be called for already deleted link")
+			return nil
+		},
+	}
+	handler := NewHandler(NewService(repo), "https://tracklink.example.com")
+	auth := httpmiddleware.NewAuth(fakeSessionStore{
+		getFn: func(_ context.Context, _ string) (session.SessionData, error) {
+			return session.SessionData{UserID: "owner-1", Role: "customer"}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/links/link-1", nil)
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+	rr := httptest.NewRecorder()
+	testRouter := chi.NewRouter()
+	testRouter.With(auth.RequireAuth).Delete("/api/v1/links/{linkId}", handler.Delete)
+	testRouter.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, rr.Code)
+	}
+}
+

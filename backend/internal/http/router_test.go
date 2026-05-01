@@ -259,3 +259,23 @@ func TestUpdateLinkStatusRouteRequiresAuth(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rr.Code)
 	}
 }
+
+func TestDeleteLinkRouteRequiresAuth(t *testing.T) {
+	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
+	router := NewRouter(Deps{
+		Sessions: store,
+		Config: config.Config{
+			SessionTTL:          24 * time.Hour,
+			SessionCookieSecure: false,
+			PublicURL:           "https://tracklink.example.com",
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/links/7607f3ca-90d7-4c47-b2f7-f968ad1f5f9a", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rr.Code)
+	}
+}

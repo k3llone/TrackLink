@@ -17,6 +17,7 @@ type Repository interface {
 	ListByOwner(ctx context.Context, filter ListLinksFilter) ([]Link, int64, error)
 	GetByIDAndOwner(ctx context.Context, linkID, ownerID string) (Link, error)
 	UpdateStatus(ctx context.Context, linkID, ownerID, status string) (Link, error)
+	SoftDelete(ctx context.Context, linkID, ownerID string) error
 }
 
 type GormRepository struct {
@@ -146,4 +147,24 @@ func (r *GormRepository) UpdateStatus(ctx context.Context, linkID, ownerID, stat
 	}
 
 	return r.GetByIDAndOwner(ctx, linkID, ownerID)
+}
+
+func (r *GormRepository) SoftDelete(ctx context.Context, linkID, ownerID string) error {
+	now := time.Now().UTC()
+	result := r.db.WithContext(ctx).
+		Model(&Link{}).
+		Where("id = ? AND owner_id = ?", linkID, ownerID).
+		Updates(map[string]any{
+			"status":     StatusDeleted,
+			"deleted_at": now,
+			"updated_at": now,
+		})
+	if result.Error != nil {
+		return fmt.Errorf("soft delete link: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrLinkNotFound
+	}
+
+	return nil
 }
