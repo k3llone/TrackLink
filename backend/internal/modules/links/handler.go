@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	httpmiddleware "tracklink/internal/http/middleware"
+	"tracklink/internal/shared"
 )
 
 type Handler struct {
@@ -23,8 +23,8 @@ func NewHandler(service *Service, publicURL string) *Handler {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	sessionData, ok := httpmiddleware.SessionDataFromContext(r.Context())
-	if !ok || strings.TrimSpace(sessionData.UserID) == "" {
+	userID, _, ok := shared.CurrentUserFromContext(r.Context())
+	if !ok || strings.TrimSpace(userID) == "" {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "Unauthorized", nil)
 		return
 	}
@@ -35,7 +35,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	link, fields, err := h.service.Create(r.Context(), sessionData.UserID, req)
+	link, fields, err := h.service.Create(r.Context(), userID, req)
 	if err != nil {
 		if errors.Is(err, ErrValidation) {
 			writeError(w, http.StatusBadRequest, "validation_error", "Invalid request body", fields)
