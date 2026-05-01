@@ -215,6 +215,41 @@ func (s *Service) UpdateStatus(ctx context.Context, ownerID, linkID string, req 
 	return updated, nil, nil
 }
 
+func (s *Service) Delete(ctx context.Context, ownerID, linkID string) (map[string]string, error) {
+	fields := map[string]string{}
+
+	if strings.TrimSpace(ownerID) == "" {
+		fields["ownerId"] = "Owner ID is required"
+	}
+	if strings.TrimSpace(linkID) == "" {
+		fields["linkId"] = "Link ID is required"
+	}
+	if len(fields) > 0 {
+		return fields, ErrValidation
+	}
+
+	link, err := s.repo.GetByIDAndOwner(ctx, linkID, ownerID)
+	if err != nil {
+		if errors.Is(err, ErrLinkNotFound) {
+			return nil, ErrLinkNotFound
+		}
+		return nil, err
+	}
+
+	if link.Status == StatusDeleted || link.DeletedAt != nil {
+		return nil, nil
+	}
+
+	if err := s.repo.SoftDelete(ctx, linkID, ownerID); err != nil {
+		if errors.Is(err, ErrLinkNotFound) {
+			return nil, ErrLinkNotFound
+		}
+		return nil, err
+	}
+
+	return nil, nil
+}
+
 func generateCode(length int) (string, error) {
 	raw := make([]byte, length)
 	if _, err := rand.Read(raw); err != nil {

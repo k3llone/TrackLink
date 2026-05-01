@@ -124,6 +124,31 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, mapLinkToResponse(updated, h.publicURL))
 }
 
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	userID, _, ok := shared.CurrentUserFromContext(r.Context())
+	if !ok || strings.TrimSpace(userID) == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Unauthorized", nil)
+		return
+	}
+
+	linkID := strings.TrimSpace(chi.URLParam(r, "linkId"))
+	fields, err := h.service.Delete(r.Context(), userID, linkID)
+	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusBadRequest, "validation_error", "Invalid request body", fields)
+			return
+		}
+		if errors.Is(err, ErrLinkNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Resource not found", nil)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Internal server error", nil)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func mapLinkToResponse(link Link, publicURL string) LinkResponse {
 	shortPath := link.Code
 	if link.CustomAlias != nil && strings.TrimSpace(*link.CustomAlias) != "" {

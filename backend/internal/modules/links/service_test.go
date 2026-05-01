@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 type fakeRepository struct {
@@ -13,6 +14,7 @@ type fakeRepository struct {
 	listByOwnerFn         func(ctx context.Context, filter ListLinksFilter) ([]Link, int64, error)
 	getByIDAndOwnerFn     func(ctx context.Context, linkID, ownerID string) (Link, error)
 	updateStatusFn        func(ctx context.Context, linkID, ownerID, status string) (Link, error)
+	softDeleteFn          func(ctx context.Context, linkID, ownerID string) error
 }
 
 func (f fakeRepository) Create(ctx context.Context, link *Link) error {
@@ -61,6 +63,14 @@ func (f fakeRepository) UpdateStatus(ctx context.Context, linkID, ownerID, statu
 	}
 
 	return f.updateStatusFn(ctx, linkID, ownerID, status)
+}
+
+func (f fakeRepository) SoftDelete(ctx context.Context, linkID, ownerID string) error {
+	if f.softDeleteFn == nil {
+		return nil
+	}
+
+	return f.softDeleteFn(ctx, linkID, ownerID)
 }
 
 func TestServiceCreateSuccess(t *testing.T) {
@@ -476,4 +486,96 @@ func TestServiceUpdateStatusForbiddenForDeletedOrBlocked(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestServiceDeleteSuccess(t *testing.T) {
+	softDeleted := false
+	repo := fakeRepository{
+		getByIDAndOwnerFn: func(_ context.Context, linkID, ownerID string) (Link, error) {
+			return Link{ID: linkID, OwnerID: ownerID, Status: StatusActive}, nil
+		},
+		softDeleteFn: func(_ context.Context, linkID, ownerID string) error {
+			softDeleted = true
+			if linkID != "link-1" || ownerID != "owner-1" {
+				t.Fatalf("unexpected delete args: %s %s", linkID, ownerID)
+			}
+			return nil
+		},
+	}
+	service := NewService(repo)
+
+	fields, err := service.Delete(context.Background(), "owner-1", "link-1")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+	if !softDeleted {
+		t.Fatal("expected soft delete to be called")
+	}
+}
+
+func TestServiceDeleteValidation(t *testing.T) {
+	service := NewService(fakeRepository{})
+
+	fields, err := service.Delete(context.Background(), "", "")
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+	if _, ok := fields["ownerId"]; !ok {
+		t.Fatalf("expected ownerId validation error, got %v", fields)
+	}
+	if _, ok := fields["linkId"]; !ok {
+		t.Fatalf("expected linkId validation error, got %v", fields)
+	}
+}
+
+func TestServiceDeleteNotFound(t *testing.T) {
+	repo := fakeRepository{
+		getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
+			return Link{}, ErrLinkNotFound
+		},
+	}
+	service := NewService(repo)
+
+	_, err := service.Delete(context.Background(), "owner-1", "missing")
+	if !errors.Is(err, ErrLinkNotFound) {
+		t.Fatalf("expected ErrLinkNotFound, got %v", err)
+	}
+}
+
+func TestServiceDeleteAlreadyDeletedIsIdempotent(t *testing.T) {
+	softDeleteCalled := false
+	now := timePtr(time.Now().UTC())
+	repo := fakeRepository{
+		getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
+			return Link{
+				ID:        "link-1",
+				OwnerID:   "owner-1",
+				Status:    StatusDeleted,
+				DeletedAt: now,
+			}, nil
+		},
+		softDeleteFn: func(_ context.Context, _, _ string) error {
+			softDeleteCalled = true
+			return nil
+		},
+	}
+	service := NewService(repo)
+
+	fields, err := service.Delete(context.Background(), "owner-1", "link-1")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+	if softDeleteCalled {
+		t.Fatal("soft delete should not be called for already deleted link")
+	}
+}
+
+func timePtr(t time.Time) *time.Time {
+	return &t
 }
