@@ -89,3 +89,113 @@ func TestLogoutRouteRepeatLogoutReturnsUnauthorized(t *testing.T) {
 		t.Fatalf("expected second logout status %d, got %d", http.StatusUnauthorized, secondResp.Code)
 	}
 }
+
+func TestMeRouteRequiresAuth(t *testing.T) {
+	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
+	router := NewRouter(Deps{
+		Sessions: store,
+		Config: config.Config{
+			SessionTTL:          24 * time.Hour,
+			SessionCookieSecure: false,
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rr.Code)
+	}
+}
+
+func TestMeRouteInvalidSessionReturnsUnauthorized(t *testing.T) {
+	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
+	router := NewRouter(Deps{
+		Sessions: store,
+		Config: config.Config{
+			SessionTTL:          24 * time.Hour,
+			SessionCookieSecure: false,
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req.AddCookie(&http.Cookie{Name: "tracklink_session", Value: "missing-session"})
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rr.Code)
+	}
+}
+
+func TestMeRouteValidSessionPassesMiddleware(t *testing.T) {
+	store := &fakeRouterSessionStore{
+		sessions: map[string]session.SessionData{
+			"session-123": {
+				UserID: "user-1",
+				Role:   "customer",
+			},
+		},
+	}
+	router := NewRouter(Deps{
+		Sessions: store,
+		Config: config.Config{
+			SessionTTL:          24 * time.Hour,
+			SessionCookieSecure: false,
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req.AddCookie(&http.Cookie{Name: "tracklink_session", Value: "session-123"})
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code == http.StatusUnauthorized {
+		t.Fatalf("expected request to pass middleware, got status %d", rr.Code)
+	}
+}
+
+func TestPublicRoutesAreNotBlockedByAuthMiddleware(t *testing.T) {
+	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
+	router := NewRouter(Deps{
+		Sessions: store,
+		Config: config.Config{
+			SessionTTL:          24 * time.Hour,
+			SessionCookieSecure: false,
+		},
+	})
+
+	registerReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", nil)
+	registerResp := httptest.NewRecorder()
+	router.ServeHTTP(registerResp, registerReq)
+	if registerResp.Code == http.StatusUnauthorized {
+		t.Fatalf("expected public register route to be accessible, got %d", registerResp.Code)
+	}
+
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	loginResp := httptest.NewRecorder()
+	router.ServeHTTP(loginResp, loginReq)
+	if loginResp.Code == http.StatusUnauthorized {
+		t.Fatalf("expected public login route to be accessible, got %d", loginResp.Code)
+	}
+}
+
+func TestPublicRedirectRouteIsNotBlockedByAuthMiddleware(t *testing.T) {
+	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
+	router := NewRouter(Deps{
+		Sessions: store,
+		Config: config.Config{
+			SessionTTL:          24 * time.Hour,
+			SessionCookieSecure: false,
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/some-code", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code == http.StatusUnauthorized {
+		t.Fatalf("expected redirect route to be public, got %d", rr.Code)
+	}
+}

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	httpmiddleware "tracklink/internal/http/middleware"
 	"tracklink/internal/platform/session"
+	"tracklink/internal/shared"
 )
 
 const defaultSessionCookieName = "tracklink_session"
@@ -151,7 +151,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID, ok := httpmiddleware.SessionIDFromContext(r.Context())
+	sessionID, ok := shared.SessionIDFromContext(r.Context())
 	if !ok || strings.TrimSpace(sessionID) == "" {
 		cookie, err := r.Cookie(h.cookieConfig.Name)
 		if err != nil || strings.TrimSpace(cookie.Value) == "" {
@@ -178,6 +178,33 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
+	userID, _, ok := shared.CurrentUserFromContext(r.Context())
+	if !ok || strings.TrimSpace(userID) == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Unauthorized", nil)
+		return
+	}
+
+	user, err := h.service.CurrentUser(r.Context(), userID)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "Unauthorized", nil)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Internal server error", nil)
+		return
+	}
+
+	resp := UserResponse{
+		ID:        user.ID,
+		Email:     user.Email,
+		Role:      user.Role,
+		CreatedAt: user.CreatedAt.UTC().Format(time.RFC3339),
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string, fields map[string]string) {

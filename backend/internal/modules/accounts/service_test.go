@@ -12,6 +12,7 @@ import (
 type fakeRepo struct {
 	createFn      func(ctx context.Context, user *User) error
 	findByEmailFn func(ctx context.Context, email string) (User, error)
+	findByIDFn    func(ctx context.Context, id string) (User, error)
 }
 
 func (f fakeRepo) Create(ctx context.Context, user *User) error {
@@ -26,6 +27,13 @@ func (f fakeRepo) FindByEmail(ctx context.Context, email string) (User, error) {
 		return User{}, ErrUserNotFound
 	}
 	return f.findByEmailFn(ctx, email)
+}
+
+func (f fakeRepo) FindByID(ctx context.Context, id string) (User, error) {
+	if f.findByIDFn == nil {
+		return User{}, ErrUserNotFound
+	}
+	return f.findByIDFn(ctx, id)
 }
 
 func TestServiceRegisterSuccess(t *testing.T) {
@@ -225,5 +233,44 @@ func TestServiceLoginValidation(t *testing.T) {
 	}
 	if _, ok := fields["password"]; !ok {
 		t.Fatal("expected password validation error")
+	}
+}
+
+func TestServiceCurrentUserSuccess(t *testing.T) {
+	repo := fakeRepo{
+		findByIDFn: func(_ context.Context, id string) (User, error) {
+			if id != "f98b832d-6f5b-4bcf-9175-8e56f5e983f0" {
+				t.Fatalf("unexpected id: %s", id)
+			}
+			return User{
+				ID:        id,
+				Email:     "user@example.com",
+				Role:      RoleCustomer,
+				CreatedAt: time.Date(2026, 4, 30, 19, 0, 0, 0, time.UTC),
+			}, nil
+		},
+	}
+
+	service := NewService(repo)
+	user, err := service.CurrentUser(context.Background(), " f98b832d-6f5b-4bcf-9175-8e56f5e983f0 ")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if user.Email != "user@example.com" {
+		t.Fatalf("unexpected user email: %s", user.Email)
+	}
+}
+
+func TestServiceCurrentUserNotFound(t *testing.T) {
+	repo := fakeRepo{
+		findByIDFn: func(_ context.Context, _ string) (User, error) {
+			return User{}, ErrUserNotFound
+		},
+	}
+
+	service := NewService(repo)
+	_, err := service.CurrentUser(context.Background(), "missing-user")
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
 }

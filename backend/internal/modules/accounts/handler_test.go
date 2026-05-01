@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"tracklink/internal/platform/session"
+	"tracklink/internal/shared"
 )
 
 type fakeSessionStore struct {
@@ -316,5 +317,77 @@ func TestHandlerLogoutDeleteError(t *testing.T) {
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rr.Code)
+	}
+}
+
+func TestHandlerMeSuccess(t *testing.T) {
+	repo := fakeRepo{
+		findByIDFn: func(_ context.Context, id string) (User, error) {
+			if id != "4a9550d6-c2df-4adb-8b44-f85e6f02177f" {
+				t.Fatalf("unexpected user id: %s", id)
+			}
+			return User{
+				ID:           "4a9550d6-c2df-4adb-8b44-f85e6f02177f",
+				Email:        "new@example.com",
+				PasswordHash: "secret",
+				Role:         RoleCustomer,
+				CreatedAt:    time.Date(2026, 4, 30, 17, 10, 0, 0, time.UTC),
+			}, nil
+		},
+	}
+
+	handler := NewHandler(NewService(repo), fakeSessionStore{}, CookieSettings{})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-123", session.SessionData{
+		UserID:    "4a9550d6-c2df-4adb-8b44-f85e6f02177f",
+		Role:      RoleCustomer,
+		CreatedAt: time.Now().UTC(),
+	}))
+	rr := httptest.NewRecorder()
+
+	handler.Me(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, `"email":"new@example.com"`) {
+		t.Fatalf("expected email in response, got %s", body)
+	}
+	if strings.Contains(body, "password_hash") || strings.Contains(body, "tracklink_session") {
+		t.Fatalf("response must not expose internal fields: %s", body)
+	}
+}
+
+func TestHandlerMeMissingContextUnauthorized(t *testing.T) {
+	handler := NewHandler(NewService(fakeRepo{}), fakeSessionStore{}, CookieSettings{})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	rr := httptest.NewRecorder()
+
+	handler.Me(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rr.Code)
+	}
+}
+
+func TestHandlerMeUserNotFoundUnauthorized(t *testing.T) {
+	repo := fakeRepo{
+		findByIDFn: func(_ context.Context, _ string) (User, error) {
+			return User{}, ErrUserNotFound
+		},
+	}
+	handler := NewHandler(NewService(repo), fakeSessionStore{}, CookieSettings{})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-123", session.SessionData{
+		UserID: "missing-user",
+		Role:   RoleCustomer,
+	}))
+	rr := httptest.NewRecorder()
+
+	handler.Me(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rr.Code)
 	}
 }

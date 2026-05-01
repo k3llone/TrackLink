@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"tracklink/internal/platform/session"
+	"tracklink/internal/shared"
 )
 
 type fakeSessionReader struct {
@@ -74,11 +75,11 @@ func TestRequireAuthWithValidSessionCallsNext(t *testing.T) {
 	nextCalled := false
 	handler := auth.RequireAuth(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		nextCalled = true
-		sessionID, ok := SessionIDFromContext(r.Context())
+		sessionID, ok := shared.SessionIDFromContext(r.Context())
 		if !ok || sessionID != "session-123" {
 			t.Fatalf("missing session id in context: %v %s", ok, sessionID)
 		}
-		data, ok := SessionDataFromContext(r.Context())
+		data, ok := shared.SessionDataFromContext(r.Context())
 		if !ok || data.UserID != "user-1" {
 			t.Fatalf("missing session data in context: %v %#v", ok, data)
 		}
