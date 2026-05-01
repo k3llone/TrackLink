@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	httpmiddleware "tracklink/internal/http/middleware"
 	"tracklink/internal/platform/session"
 )
@@ -381,6 +382,128 @@ func TestHandlerListResponseContainsFullLinkFields(t *testing.T) {
 	}
 	if second.LastClickedAt != nil {
 		t.Fatalf("expected nil lastClickedAt for second item, got %v", second.LastClickedAt)
+	}
+}
+
+func TestHandlerUpdateStatusSuccess(t *testing.T) {
+	repo := fakeRepository{
+		getByIDAndOwnerFn: func(_ context.Context, linkID, ownerID string) (Link, error) {
+			return Link{ID: linkID, OwnerID: ownerID, Status: StatusActive}, nil
+		},
+		updateStatusFn: func(_ context.Context, linkID, ownerID, status string) (Link, error) {
+			return Link{
+				ID:         linkID,
+				OwnerID:    ownerID,
+				Code:       "abc123",
+				TargetURL:  "https://example.com",
+				Status:     status,
+				CreatedAt:  time.Date(2026, 5, 1, 7, 0, 0, 0, time.UTC),
+				UpdatedAt:  time.Date(2026, 5, 1, 8, 0, 0, 0, time.UTC),
+			}, nil
+		},
+	}
+	handler := NewHandler(NewService(repo), "https://tracklink.example.com")
+	auth := httpmiddleware.NewAuth(fakeSessionStore{
+		getFn: func(_ context.Context, _ string) (session.SessionData, error) {
+			return session.SessionData{
+				UserID: "owner-1",
+				Role:   "customer",
+			}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/links/link-1/status", strings.NewReader(`{"status":"inactive"}`))
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+	rr := httptest.NewRecorder()
+	testRouter := chi.NewRouter()
+	testRouter.With(auth.RequireAuth).Patch("/api/v1/links/{linkId}/status", handler.UpdateStatus)
+	testRouter.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+
+	var resp LinkResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Status != StatusInactive {
+		t.Fatalf("expected inactive status, got %s", resp.Status)
+	}
+}
+
+func TestHandlerUpdateStatusInvalidBody(t *testing.T) {
+	handler := NewHandler(NewService(fakeRepository{}), "https://tracklink.example.com")
+	auth := httpmiddleware.NewAuth(fakeSessionStore{
+		getFn: func(_ context.Context, _ string) (session.SessionData, error) {
+			return session.SessionData{UserID: "owner-1", Role: "customer"}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/links/link-1/status", strings.NewReader(`{"status"`))
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+	rr := httptest.NewRecorder()
+	testRouter := chi.NewRouter()
+	testRouter.With(auth.RequireAuth).Patch("/api/v1/links/{linkId}/status", handler.UpdateStatus)
+	testRouter.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	}
+}
+
+func TestHandlerUpdateStatusNotFound(t *testing.T) {
+	repo := fakeRepository{
+		getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
+			return Link{}, ErrLinkNotFound
+		},
+	}
+	handler := NewHandler(NewService(repo), "https://tracklink.example.com")
+	auth := httpmiddleware.NewAuth(fakeSessionStore{
+		getFn: func(_ context.Context, _ string) (session.SessionData, error) {
+			return session.SessionData{UserID: "owner-1", Role: "customer"}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/links/link-1/status", strings.NewReader(`{"status":"active"}`))
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+	rr := httptest.NewRecorder()
+	testRouter := chi.NewRouter()
+	testRouter.With(auth.RequireAuth).Patch("/api/v1/links/{linkId}/status", handler.UpdateStatus)
+	testRouter.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, rr.Code)
+	}
+}
+
+func TestHandlerUpdateStatusConflictForBlockedOrDeleted(t *testing.T) {
+	for _, st := range []string{StatusBlocked, StatusDeleted} {
+		st := st
+		t.Run(st, func(t *testing.T) {
+			repo := fakeRepository{
+				getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
+					return Link{ID: "link-1", OwnerID: "owner-1", Status: st}, nil
+				},
+			}
+			handler := NewHandler(NewService(repo), "https://tracklink.example.com")
+			auth := httpmiddleware.NewAuth(fakeSessionStore{
+				getFn: func(_ context.Context, _ string) (session.SessionData, error) {
+					return session.SessionData{UserID: "owner-1", Role: "customer"}, nil
+				},
+			})
+
+			req := httptest.NewRequest(http.MethodPatch, "/api/v1/links/link-1/status", strings.NewReader(`{"status":"active"}`))
+			req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+			rr := httptest.NewRecorder()
+			testRouter := chi.NewRouter()
+			testRouter.With(auth.RequireAuth).Patch("/api/v1/links/{linkId}/status", handler.UpdateStatus)
+			testRouter.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusConflict {
+				t.Fatalf("expected status %d, got %d", http.StatusConflict, rr.Code)
+			}
+		})
 	}
 }
 

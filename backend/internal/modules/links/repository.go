@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
@@ -14,6 +15,8 @@ type Repository interface {
 	ExistsByCode(ctx context.Context, code string) (bool, error)
 	ExistsByCustomAlias(ctx context.Context, customAlias string) (bool, error)
 	ListByOwner(ctx context.Context, filter ListLinksFilter) ([]Link, int64, error)
+	GetByIDAndOwner(ctx context.Context, linkID, ownerID string) (Link, error)
+	UpdateStatus(ctx context.Context, linkID, ownerID, status string) (Link, error)
 }
 
 type GormRepository struct {
@@ -109,4 +112,38 @@ func (r *GormRepository) ListByOwner(ctx context.Context, filter ListLinksFilter
 	}
 
 	return links, totalItems, nil
+}
+
+func (r *GormRepository) GetByIDAndOwner(ctx context.Context, linkID, ownerID string) (Link, error) {
+	var link Link
+	err := r.db.WithContext(ctx).
+		Where("id = ? AND owner_id = ?", linkID, ownerID).
+		First(&link).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return Link{}, ErrLinkNotFound
+		}
+		return Link{}, fmt.Errorf("get link by id and owner: %w", err)
+	}
+
+	return link, nil
+}
+
+func (r *GormRepository) UpdateStatus(ctx context.Context, linkID, ownerID, status string) (Link, error) {
+	now := time.Now().UTC()
+	result := r.db.WithContext(ctx).
+		Model(&Link{}).
+		Where("id = ? AND owner_id = ?", linkID, ownerID).
+		Updates(map[string]any{
+			"status":     status,
+			"updated_at": now,
+		})
+	if result.Error != nil {
+		return Link{}, fmt.Errorf("update link status: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return Link{}, ErrLinkNotFound
+	}
+
+	return r.GetByIDAndOwner(ctx, linkID, ownerID)
 }
