@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"tracklink/internal/platform/session"
+	"tracklink/internal/shared"
 )
 
 const SessionCookieName = "tracklink_session"
@@ -18,13 +19,6 @@ type SessionReader interface {
 type Auth struct {
 	sessions SessionReader
 }
-
-type contextKey string
-
-const (
-	sessionIDContextKey   contextKey = "session_id"
-	sessionDataContextKey contextKey = "session_data"
-)
 
 func NewAuth(sessions SessionReader) *Auth {
 	return &Auth{sessions: sessions}
@@ -50,20 +44,9 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), sessionIDContextKey, sessionID)
-		ctx = context.WithValue(ctx, sessionDataContextKey, data)
+		ctx := shared.WithCurrentSession(r.Context(), sessionID, data)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-}
-
-func SessionIDFromContext(ctx context.Context) (string, bool) {
-	v, ok := ctx.Value(sessionIDContextKey).(string)
-	return v, ok
-}
-
-func SessionDataFromContext(ctx context.Context) (session.SessionData, bool) {
-	v, ok := ctx.Value(sessionDataContextKey).(session.SessionData)
-	return v, ok
 }
 
 type errorResponse struct {

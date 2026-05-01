@@ -80,6 +80,20 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (User, map[string
 	return user, nil, nil
 }
 
+func (s *Service) CurrentUser(ctx context.Context, userID string) (User, error) {
+	id := strings.TrimSpace(userID)
+	if id == "" {
+		return User{}, ErrUserNotFound
+	}
+
+	user, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return User{}, err
+	}
+
+	return user, nil
+}
+
 func validateRegisterInput(email, password string) map[string]string {
 	fields := make(map[string]string)
 
