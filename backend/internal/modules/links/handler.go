@@ -41,6 +41,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "validation_error", "Invalid request body", fields)
 			return
 		}
+		if errors.Is(err, ErrAliasAlreadyExists) {
+			writeError(w, http.StatusConflict, "custom_alias_already_exists", "Custom alias is already taken", nil)
+			return
+		}
 
 		writeError(w, http.StatusInternalServerError, "internal_error", "Internal server error", nil)
 		return

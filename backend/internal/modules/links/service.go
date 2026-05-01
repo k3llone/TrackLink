@@ -14,6 +14,7 @@ import (
 
 var ErrValidation = errors.New("validation failed")
 var ErrCodeGenerationExhausted = errors.New("code generation attempts exhausted")
+var ErrAliasAlreadyExists = errors.New("custom alias already exists")
 
 const (
 	codeLength          = 6
@@ -58,6 +59,15 @@ func (s *Service) Create(ctx context.Context, ownerID string, req CreateLinkRequ
 	if len(fields) > 0 {
 		return Link{}, fields, ErrValidation
 	}
+	if customAlias != nil {
+		exists, err := s.repo.ExistsByCustomAlias(ctx, *customAlias)
+		if err != nil {
+			return Link{}, nil, err
+		}
+		if exists {
+			return Link{}, nil, ErrAliasAlreadyExists
+		}
+	}
 
 	code, err := s.generateUniqueCode(ctx)
 	if err != nil {
@@ -75,6 +85,9 @@ func (s *Service) Create(ctx context.Context, ownerID string, req CreateLinkRequ
 	}
 
 	if err := s.repo.Create(ctx, &link); err != nil {
+		if errors.Is(err, ErrAliasAlreadyExists) {
+			return Link{}, nil, ErrAliasAlreadyExists
+		}
 		return Link{}, nil, err
 	}
 

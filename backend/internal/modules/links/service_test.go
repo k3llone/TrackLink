@@ -7,8 +7,9 @@ import (
 )
 
 type fakeRepository struct {
-	createFn       func(ctx context.Context, link *Link) error
-	existsByCodeFn func(ctx context.Context, code string) (bool, error)
+	createFn              func(ctx context.Context, link *Link) error
+	existsByCodeFn        func(ctx context.Context, code string) (bool, error)
+	existsByCustomAliasFn func(ctx context.Context, customAlias string) (bool, error)
 }
 
 func (f fakeRepository) Create(ctx context.Context, link *Link) error {
@@ -25,6 +26,14 @@ func (f fakeRepository) ExistsByCode(ctx context.Context, code string) (bool, er
 	}
 
 	return f.existsByCodeFn(ctx, code)
+}
+
+func (f fakeRepository) ExistsByCustomAlias(ctx context.Context, customAlias string) (bool, error) {
+	if f.existsByCustomAliasFn == nil {
+		return false, nil
+	}
+
+	return f.existsByCustomAliasFn(ctx, customAlias)
 }
 
 func TestServiceCreateSuccess(t *testing.T) {
@@ -179,6 +188,34 @@ func TestServiceCreateReturnsErrorWhenCodeGenerationAttemptsExhausted(t *testing
 	})
 	if !errors.Is(err, ErrCodeGenerationExhausted) {
 		t.Fatalf("expected ErrCodeGenerationExhausted, got %v", err)
+	}
+}
+
+func TestServiceCreateReturnsConflictWhenCustomAliasExists(t *testing.T) {
+	createCalled := false
+	repo := fakeRepository{
+		createFn: func(_ context.Context, _ *Link) error {
+			createCalled = true
+			return nil
+		},
+		existsByCustomAliasFn: func(_ context.Context, customAlias string) (bool, error) {
+			if customAlias == "taken-alias" {
+				return true, nil
+			}
+			return false, nil
+		},
+	}
+	service := NewService(repo)
+
+	_, _, err := service.Create(context.Background(), "owner-1", CreateLinkRequest{
+		TargetURL:   "https://example.com",
+		CustomAlias: strPtr("taken-alias"),
+	})
+	if !errors.Is(err, ErrAliasAlreadyExists) {
+		t.Fatalf("expected ErrAliasAlreadyExists, got %v", err)
+	}
+	if createCalled {
+		t.Fatal("create should not be called when alias is already taken")
 	}
 }
 
