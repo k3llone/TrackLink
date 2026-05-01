@@ -15,6 +15,8 @@ import (
 var ErrValidation = errors.New("validation failed")
 var ErrCodeGenerationExhausted = errors.New("code generation attempts exhausted")
 var ErrAliasAlreadyExists = errors.New("custom alias already exists")
+var ErrLinkNotFound = errors.New("link not found")
+var ErrStatusChangeNotAllowed = errors.New("status change not allowed")
 
 const (
 	codeLength             = 6
@@ -32,6 +34,10 @@ var allowedLinkStatuses = map[string]struct{}{
 	StatusInactive: {},
 	StatusBlocked:  {},
 	StatusDeleted:  {},
+}
+var allowedUserUpdateStatuses = map[string]struct{}{
+	StatusActive:   {},
+	StatusInactive: {},
 }
 
 type Service struct {
@@ -163,6 +169,50 @@ func (s *Service) List(ctx context.Context, ownerID string, query ListLinksQuery
 		TotalItems: totalItems,
 		TotalPages: totalPages,
 	}, nil, nil
+}
+
+func (s *Service) UpdateStatus(ctx context.Context, ownerID, linkID string, req UpdateLinkStatusRequest) (Link, map[string]string, error) {
+	fields := map[string]string{}
+
+	if strings.TrimSpace(ownerID) == "" {
+		fields["ownerId"] = "Owner ID is required"
+	}
+	if strings.TrimSpace(linkID) == "" {
+		fields["linkId"] = "Link ID is required"
+	}
+
+	status := strings.TrimSpace(req.Status)
+	if status == "" {
+		fields["status"] = "Status is required"
+	} else if _, ok := allowedUserUpdateStatuses[status]; !ok {
+		fields["status"] = "Status must be one of: active, inactive"
+	}
+
+	if len(fields) > 0 {
+		return Link{}, fields, ErrValidation
+	}
+
+	link, err := s.repo.GetByIDAndOwner(ctx, linkID, ownerID)
+	if err != nil {
+		if errors.Is(err, ErrLinkNotFound) {
+			return Link{}, nil, ErrLinkNotFound
+		}
+		return Link{}, nil, err
+	}
+
+	if link.Status == StatusDeleted || link.Status == StatusBlocked {
+		return Link{}, nil, ErrStatusChangeNotAllowed
+	}
+
+	updated, err := s.repo.UpdateStatus(ctx, linkID, ownerID, status)
+	if err != nil {
+		if errors.Is(err, ErrLinkNotFound) {
+			return Link{}, nil, ErrLinkNotFound
+		}
+		return Link{}, nil, err
+	}
+
+	return updated, nil, nil
 }
 
 func generateCode(length int) (string, error) {

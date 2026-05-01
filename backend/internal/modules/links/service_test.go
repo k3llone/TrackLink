@@ -11,6 +11,8 @@ type fakeRepository struct {
 	existsByCodeFn        func(ctx context.Context, code string) (bool, error)
 	existsByCustomAliasFn func(ctx context.Context, customAlias string) (bool, error)
 	listByOwnerFn         func(ctx context.Context, filter ListLinksFilter) ([]Link, int64, error)
+	getByIDAndOwnerFn     func(ctx context.Context, linkID, ownerID string) (Link, error)
+	updateStatusFn        func(ctx context.Context, linkID, ownerID, status string) (Link, error)
 }
 
 func (f fakeRepository) Create(ctx context.Context, link *Link) error {
@@ -43,6 +45,22 @@ func (f fakeRepository) ListByOwner(ctx context.Context, filter ListLinksFilter)
 	}
 
 	return f.listByOwnerFn(ctx, filter)
+}
+
+func (f fakeRepository) GetByIDAndOwner(ctx context.Context, linkID, ownerID string) (Link, error) {
+	if f.getByIDAndOwnerFn == nil {
+		return Link{}, ErrLinkNotFound
+	}
+
+	return f.getByIDAndOwnerFn(ctx, linkID, ownerID)
+}
+
+func (f fakeRepository) UpdateStatus(ctx context.Context, linkID, ownerID, status string) (Link, error) {
+	if f.updateStatusFn == nil {
+		return Link{}, ErrLinkNotFound
+	}
+
+	return f.updateStatusFn(ctx, linkID, ownerID, status)
 }
 
 func TestServiceCreateSuccess(t *testing.T) {
@@ -357,5 +375,105 @@ func TestServiceListValidation(t *testing.T) {
 	}
 	if _, ok := fields["status"]; !ok {
 		t.Fatalf("expected status validation error, got %v", fields)
+	}
+}
+
+func TestServiceUpdateStatusSuccess(t *testing.T) {
+	repo := fakeRepository{
+		getByIDAndOwnerFn: func(_ context.Context, linkID, ownerID string) (Link, error) {
+			if linkID != "link-1" || ownerID != "owner-1" {
+				t.Fatalf("unexpected lookup args: linkID=%s ownerID=%s", linkID, ownerID)
+			}
+			return Link{ID: linkID, OwnerID: ownerID, Status: StatusActive}, nil
+		},
+		updateStatusFn: func(_ context.Context, linkID, ownerID, status string) (Link, error) {
+			if status != StatusInactive {
+				t.Fatalf("expected status inactive, got %s", status)
+			}
+			return Link{
+				ID:         linkID,
+				OwnerID:    ownerID,
+				Code:       "abc123",
+				TargetURL:  "https://example.com",
+				Status:     status,
+				TotalClicks: 10,
+			}, nil
+		},
+	}
+
+	service := NewService(repo)
+	link, fields, err := service.UpdateStatus(context.Background(), "owner-1", "link-1", UpdateLinkStatusRequest{
+		Status: StatusInactive,
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+	if link.Status != StatusInactive {
+		t.Fatalf("expected inactive status, got %s", link.Status)
+	}
+}
+
+func TestServiceUpdateStatusValidation(t *testing.T) {
+	service := NewService(fakeRepository{})
+
+	_, fields, err := service.UpdateStatus(context.Background(), "", "", UpdateLinkStatusRequest{
+		Status: "blocked",
+	})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+	if _, ok := fields["ownerId"]; !ok {
+		t.Fatalf("expected ownerId validation error, got %v", fields)
+	}
+	if _, ok := fields["linkId"]; !ok {
+		t.Fatalf("expected linkId validation error, got %v", fields)
+	}
+	if _, ok := fields["status"]; !ok {
+		t.Fatalf("expected status validation error, got %v", fields)
+	}
+}
+
+func TestServiceUpdateStatusLinkNotFound(t *testing.T) {
+	repo := fakeRepository{
+		getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
+			return Link{}, ErrLinkNotFound
+		},
+	}
+	service := NewService(repo)
+
+	_, _, err := service.UpdateStatus(context.Background(), "owner-1", "link-1", UpdateLinkStatusRequest{
+		Status: StatusInactive,
+	})
+	if !errors.Is(err, ErrLinkNotFound) {
+		t.Fatalf("expected ErrLinkNotFound, got %v", err)
+	}
+}
+
+func TestServiceUpdateStatusForbiddenForDeletedOrBlocked(t *testing.T) {
+	statuses := []string{StatusDeleted, StatusBlocked}
+	for _, st := range statuses {
+		st := st
+		t.Run(st, func(t *testing.T) {
+			repo := fakeRepository{
+				getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
+					return Link{ID: "link-1", OwnerID: "owner-1", Status: st}, nil
+				},
+				updateStatusFn: func(_ context.Context, _, _, _ string) (Link, error) {
+					t.Fatal("updateStatus should not be called for blocked/deleted links")
+					return Link{}, nil
+				},
+			}
+			service := NewService(repo)
+
+			_, _, err := service.UpdateStatus(context.Background(), "owner-1", "link-1", UpdateLinkStatusRequest{
+				Status: StatusActive,
+			})
+			if !errors.Is(err, ErrStatusChangeNotAllowed) {
+				t.Fatalf("expected ErrStatusChangeNotAllowed, got %v", err)
+			}
+		})
 	}
 }

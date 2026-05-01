@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"tracklink/internal/shared"
 )
 
@@ -86,6 +87,41 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		Items:      items,
 		Pagination: pagination,
 	})
+}
+
+func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
+	userID, _, ok := shared.CurrentUserFromContext(r.Context())
+	if !ok || strings.TrimSpace(userID) == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Unauthorized", nil)
+		return
+	}
+
+	linkID := strings.TrimSpace(chi.URLParam(r, "linkId"))
+	var req UpdateLinkStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "validation_error", "Invalid request body", nil)
+		return
+	}
+
+	updated, fields, err := h.service.UpdateStatus(r.Context(), userID, linkID, req)
+	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusBadRequest, "validation_error", "Invalid request body", fields)
+			return
+		}
+		if errors.Is(err, ErrLinkNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Resource not found", nil)
+			return
+		}
+		if errors.Is(err, ErrStatusChangeNotAllowed) {
+			writeError(w, http.StatusConflict, "status_change_not_allowed", "Status change is not allowed", nil)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Internal server error", nil)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, mapLinkToResponse(updated, h.publicURL))
 }
 
 func mapLinkToResponse(link Link, publicURL string) LinkResponse {

@@ -5,6 +5,10 @@ type CreateLinkRequest struct {
 	CustomAlias *string `json:"customAlias"`
 }
 
+type UpdateLinkStatusRequest struct {
+	Status string `json:"status"`
+}
+
 type ListLinksQuery struct {
 	Page     int
 	PageSize int
