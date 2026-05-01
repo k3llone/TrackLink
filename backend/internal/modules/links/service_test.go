@@ -181,3 +181,54 @@ func TestServiceCreateReturnsErrorWhenCodeGenerationAttemptsExhausted(t *testing
 		t.Fatalf("expected ErrCodeGenerationExhausted, got %v", err)
 	}
 }
+
+func TestServiceCreateCustomAliasValidation(t *testing.T) {
+	testCases := []struct {
+		name       string
+		customAlias *string
+		wantError  bool
+	}{
+		{name: "too short", customAlias: strPtr("ab"), wantError: true},
+		{name: "too long", customAlias: strPtr("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), wantError: true},
+		{name: "invalid chars", customAlias: strPtr("bad alias!"), wantError: true},
+		{name: "valid alias", customAlias: strPtr("spring-campaign_2026"), wantError: false},
+		{name: "trimmed empty alias", customAlias: strPtr("   "), wantError: false},
+	}
+
+	repo := fakeRepository{}
+	service := NewService(repo)
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			link, fields, err := service.Create(context.Background(), "owner-1", CreateLinkRequest{
+				TargetURL:   "https://example.com",
+				CustomAlias: tc.customAlias,
+			})
+
+			if tc.wantError {
+				if !errors.Is(err, ErrValidation) {
+					t.Fatalf("expected ErrValidation, got %v", err)
+				}
+				if _, ok := fields["customAlias"]; !ok {
+					t.Fatalf("expected customAlias validation error, got %v", fields)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+			if fields != nil {
+				t.Fatalf("expected nil fields, got %v", fields)
+			}
+			if tc.customAlias != nil && *tc.customAlias == "   " && link.CustomAlias != nil {
+				t.Fatalf("expected normalized empty alias to become nil, got %v", *link.CustomAlias)
+			}
+		})
+	}
+}
+
+func strPtr(v string) *string {
+	return &v
+}
