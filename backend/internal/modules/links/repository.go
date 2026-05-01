@@ -13,6 +13,7 @@ type Repository interface {
 	Create(ctx context.Context, link *Link) error
 	ExistsByCode(ctx context.Context, code string) (bool, error)
 	ExistsByCustomAlias(ctx context.Context, customAlias string) (bool, error)
+	ListByOwner(ctx context.Context, filter ListLinksFilter) ([]Link, int64, error)
 }
 
 type GormRepository struct {
@@ -73,4 +74,39 @@ func isUniqueConstraintViolation(err error, constraintName string) bool {
 	}
 
 	return false
+}
+
+func (r *GormRepository) ListByOwner(ctx context.Context, filter ListLinksFilter) ([]Link, int64, error) {
+	base := r.db.WithContext(ctx).Model(&Link{}).Where("owner_id = ?", filter.OwnerID)
+
+	if filter.Status != "" {
+		base = base.Where("status = ?", filter.Status)
+		if filter.Status != StatusDeleted {
+			base = base.Where("deleted_at IS NULL")
+		}
+	} else {
+		base = base.Where("status <> ?", StatusDeleted).Where("deleted_at IS NULL")
+	}
+
+	if filter.Q != "" {
+		like := "%" + filter.Q + "%"
+		base = base.Where("(code ILIKE ? OR custom_alias ILIKE ? OR target_url ILIKE ?)", like, like, like)
+	}
+
+	var totalItems int64
+	if err := base.Count(&totalItems).Error; err != nil {
+		return nil, 0, fmt.Errorf("count links by owner: %w", err)
+	}
+
+	offset := (filter.Page - 1) * filter.PageSize
+	var links []Link
+	if err := base.
+		Order("created_at DESC").
+		Limit(filter.PageSize).
+		Offset(offset).
+		Find(&links).Error; err != nil {
+		return nil, 0, fmt.Errorf("list links by owner: %w", err)
+	}
+
+	return links, totalItems, nil
 }

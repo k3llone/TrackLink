@@ -10,6 +10,7 @@ type fakeRepository struct {
 	createFn              func(ctx context.Context, link *Link) error
 	existsByCodeFn        func(ctx context.Context, code string) (bool, error)
 	existsByCustomAliasFn func(ctx context.Context, customAlias string) (bool, error)
+	listByOwnerFn         func(ctx context.Context, filter ListLinksFilter) ([]Link, int64, error)
 }
 
 func (f fakeRepository) Create(ctx context.Context, link *Link) error {
@@ -34,6 +35,14 @@ func (f fakeRepository) ExistsByCustomAlias(ctx context.Context, customAlias str
 	}
 
 	return f.existsByCustomAliasFn(ctx, customAlias)
+}
+
+func (f fakeRepository) ListByOwner(ctx context.Context, filter ListLinksFilter) ([]Link, int64, error) {
+	if f.listByOwnerFn == nil {
+		return nil, 0, nil
+	}
+
+	return f.listByOwnerFn(ctx, filter)
 }
 
 func TestServiceCreateSuccess(t *testing.T) {
@@ -277,4 +286,76 @@ func TestServiceCreateCustomAliasValidation(t *testing.T) {
 
 func strPtr(v string) *string {
 	return &v
+}
+
+func TestServiceListSuccess(t *testing.T) {
+	repo := fakeRepository{
+		listByOwnerFn: func(_ context.Context, filter ListLinksFilter) ([]Link, int64, error) {
+			if filter.OwnerID != "owner-1" {
+				t.Fatalf("unexpected owner id: %s", filter.OwnerID)
+			}
+			if filter.Page != 2 {
+				t.Fatalf("expected page 2, got %d", filter.Page)
+			}
+			if filter.PageSize != 50 {
+				t.Fatalf("expected pageSize 50, got %d", filter.PageSize)
+			}
+			if filter.Q != "promo" {
+				t.Fatalf("expected q=promo, got %s", filter.Q)
+			}
+			if filter.Status != StatusActive {
+				t.Fatalf("expected status active, got %s", filter.Status)
+			}
+			return []Link{
+				{
+					ID:         "link-1",
+					OwnerID:    "owner-1",
+					Code:       "abc123",
+					TargetURL:  "https://example.com",
+					Status:     StatusActive,
+					TotalClicks: 10,
+				},
+			}, 1, nil
+		},
+	}
+
+	service := NewService(repo)
+	items, pagination, fields, err := service.List(context.Background(), "owner-1", ListLinksQuery{
+		Page:     2,
+		PageSize: 50,
+		Q:        "promo",
+		Status:   StatusActive,
+	})
+
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if pagination.Page != 2 || pagination.PageSize != 50 || pagination.TotalItems != 1 || pagination.TotalPages != 1 {
+		t.Fatalf("unexpected pagination: %+v", pagination)
+	}
+}
+
+func TestServiceListValidation(t *testing.T) {
+	service := NewService(fakeRepository{})
+
+	_, _, fields, err := service.List(context.Background(), "", ListLinksQuery{
+		Page:     0,
+		PageSize: 0,
+		Status:   "wrong-status",
+	})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+	if _, ok := fields["ownerId"]; !ok {
+		t.Fatalf("expected ownerId validation error, got %v", fields)
+	}
+	if _, ok := fields["status"]; !ok {
+		t.Fatalf("expected status validation error, got %v", fields)
+	}
 }

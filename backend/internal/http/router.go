@@ -62,6 +62,7 @@ func NewRouter(deps Deps) *chi.Mux {
 	apiV1.Post("/auth/login", accountHandler.Login)
 	apiV1.With(authMiddleware.RequireAuth).Post("/auth/logout", accountHandler.Logout)
 	apiV1.With(authMiddleware.RequireAuth).Get("/me", accountHandler.Me)
+	apiV1.With(authMiddleware.RequireAuth).Get("/links", linkHandler.List)
 	apiV1.With(authMiddleware.RequireAuth).Post("/links", linkHandler.Create)
 	r.Mount("/api/v1", apiV1)
 

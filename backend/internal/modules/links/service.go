@@ -17,13 +17,22 @@ var ErrCodeGenerationExhausted = errors.New("code generation attempts exhausted"
 var ErrAliasAlreadyExists = errors.New("custom alias already exists")
 
 const (
-	codeLength          = 6
-	maxCodeGenAttempts  = 10
-	minCustomAliasLen   = 3
-	maxCustomAliasLen   = 64
+	codeLength             = 6
+	maxCodeGenAttempts     = 10
+	minCustomAliasLen      = 3
+	maxCustomAliasLen      = 64
+	defaultListPage        = 1
+	defaultListPageSize    = 20
+	maxListPageSize        = 100
 )
 
 var customAliasPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+var allowedLinkStatuses = map[string]struct{}{
+	StatusActive:   {},
+	StatusInactive: {},
+	StatusBlocked:  {},
+	StatusDeleted:  {},
+}
 
 type Service struct {
 	repo      Repository
@@ -92,6 +101,68 @@ func (s *Service) Create(ctx context.Context, ownerID string, req CreateLinkRequ
 	}
 
 	return link, nil, nil
+}
+
+func (s *Service) List(ctx context.Context, ownerID string, query ListLinksQuery) ([]Link, PaginationResponse, map[string]string, error) {
+	fields := map[string]string{}
+
+	if strings.TrimSpace(ownerID) == "" {
+		fields["ownerId"] = "Owner ID is required"
+	}
+
+	page := query.Page
+	if page == 0 {
+		page = defaultListPage
+	}
+	if page < 1 {
+		fields["page"] = "Page must be greater than or equal to 1"
+	}
+
+	pageSize := query.PageSize
+	if pageSize == 0 {
+		pageSize = defaultListPageSize
+	}
+	if pageSize < 1 {
+		fields["pageSize"] = "Page size must be greater than or equal to 1"
+	} else if pageSize > maxListPageSize {
+		pageSize = maxListPageSize
+	}
+
+	status := strings.TrimSpace(query.Status)
+	if status != "" {
+		if _, ok := allowedLinkStatuses[status]; !ok {
+			fields["status"] = "Status must be one of: active, inactive, blocked, deleted"
+		}
+	}
+
+	if len(fields) > 0 {
+		return nil, PaginationResponse{}, fields, ErrValidation
+	}
+
+	filter := ListLinksFilter{
+		OwnerID:  ownerID,
+		Page:     page,
+		PageSize: pageSize,
+		Q:        strings.TrimSpace(query.Q),
+		Status:   status,
+	}
+
+	items, totalItems, err := s.repo.ListByOwner(ctx, filter)
+	if err != nil {
+		return nil, PaginationResponse{}, nil, err
+	}
+
+	totalPages := 0
+	if totalItems > 0 {
+		totalPages = int((totalItems + int64(pageSize) - 1) / int64(pageSize))
+	}
+
+	return items, PaginationResponse{
+		Page:       page,
+		PageSize:   pageSize,
+		TotalItems: totalItems,
+		TotalPages: totalPages,
+	}, nil, nil
 }
 
 func generateCode(length int) (string, error) {

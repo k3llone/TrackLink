@@ -3,7 +3,10 @@ package links
 import "time"
 
 const (
-	StatusActive = "active"
+	StatusActive   = "active"
+	StatusInactive = "inactive"
+	StatusBlocked  = "blocked"
+	StatusDeleted  = "deleted"
 )
 
 type Link struct {

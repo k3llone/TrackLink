@@ -198,3 +198,189 @@ func TestHandlerCreateReturnsConflictForTakenAlias(t *testing.T) {
 	}
 }
 
+func TestHandlerListSuccessWithQueryParams(t *testing.T) {
+	alias := "spring"
+	repo := fakeRepository{
+		listByOwnerFn: func(_ context.Context, filter ListLinksFilter) ([]Link, int64, error) {
+			if filter.OwnerID != "b3f4c113-6f22-42f2-8b45-6e88b2f9b71a" {
+				t.Fatalf("unexpected ownerID: %s", filter.OwnerID)
+			}
+			if filter.Page != 2 {
+				t.Fatalf("expected page=2, got %d", filter.Page)
+			}
+			if filter.PageSize != 30 {
+				t.Fatalf("expected pageSize=30, got %d", filter.PageSize)
+			}
+			if filter.Q != "promo" {
+				t.Fatalf("expected q=promo, got %s", filter.Q)
+			}
+			if filter.Status != StatusActive {
+				t.Fatalf("expected status=active, got %s", filter.Status)
+			}
+
+			return []Link{
+				{
+					ID:          "7607f3ca-90d7-4c47-b2f7-f968ad1f5f9a",
+					OwnerID:     "b3f4c113-6f22-42f2-8b45-6e88b2f9b71a",
+					Code:        "abc123",
+					CustomAlias: &alias,
+					TargetURL:   "https://example.com/page",
+					Status:      StatusActive,
+					TotalClicks: 42,
+					CreatedAt:   time.Date(2026, 5, 1, 7, 0, 0, 0, time.UTC),
+					UpdatedAt:   time.Date(2026, 5, 1, 8, 0, 0, 0, time.UTC),
+				},
+			}, 1, nil
+		},
+	}
+
+	handler := NewHandler(NewService(repo), "https://tracklink.example.com")
+	auth := httpmiddleware.NewAuth(fakeSessionStore{
+		getFn: func(_ context.Context, sessionID string) (session.SessionData, error) {
+			if sessionID != "session-1" {
+				return session.SessionData{}, errors.New("unknown session")
+			}
+			return session.SessionData{
+				UserID: "b3f4c113-6f22-42f2-8b45-6e88b2f9b71a",
+				Role:   "customer",
+			}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/links?page=2&pageSize=30&q=promo&status=active", nil)
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+	rr := httptest.NewRecorder()
+
+	auth.RequireAuth(http.HandlerFunc(handler.List)).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+
+	var resp LinkListResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(resp.Items))
+	}
+	if resp.Pagination.Page != 2 || resp.Pagination.PageSize != 30 || resp.Pagination.TotalItems != 1 || resp.Pagination.TotalPages != 1 {
+		t.Fatalf("unexpected pagination: %+v", resp.Pagination)
+	}
+}
+
+func TestHandlerListInvalidQueryReturnsValidationError(t *testing.T) {
+	handler := NewHandler(NewService(fakeRepository{}), "https://tracklink.example.com")
+	auth := httpmiddleware.NewAuth(fakeSessionStore{
+		getFn: func(_ context.Context, _ string) (session.SessionData, error) {
+			return session.SessionData{
+				UserID: "b3f4c113-6f22-42f2-8b45-6e88b2f9b71a",
+				Role:   "customer",
+			}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/links?page=abc&pageSize=-1", nil)
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+	rr := httptest.NewRecorder()
+
+	auth.RequireAuth(http.HandlerFunc(handler.List)).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	}
+
+	var resp ErrorResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Error.Code != "validation_error" {
+		t.Fatalf("unexpected error code: %s", resp.Error.Code)
+	}
+}
+
+func TestHandlerListResponseContainsFullLinkFields(t *testing.T) {
+	alias := "campaign"
+	lastClicked := time.Date(2026, 5, 1, 9, 30, 0, 0, time.UTC)
+	repo := fakeRepository{
+		listByOwnerFn: func(_ context.Context, _ ListLinksFilter) ([]Link, int64, error) {
+			return []Link{
+				{
+					ID:           "c37ca8d2-39aa-44a0-a432-a06bf92f19a4",
+					OwnerID:      "b3f4c113-6f22-42f2-8b45-6e88b2f9b71a",
+					Code:         "abc123",
+					CustomAlias:  &alias,
+					TargetURL:    "https://example.com/landing",
+					Status:       StatusActive,
+					TotalClicks:  42,
+					LastClickedAt: &lastClicked,
+					CreatedAt:    time.Date(2026, 5, 1, 7, 0, 0, 0, time.UTC),
+					UpdatedAt:    time.Date(2026, 5, 1, 8, 0, 0, 0, time.UTC),
+				},
+				{
+					ID:          "1a15af7a-f9be-44e3-997e-c5d15f4ac32a",
+					OwnerID:     "b3f4c113-6f22-42f2-8b45-6e88b2f9b71a",
+					Code:        "noalias",
+					TargetURL:   "https://example.com/noalias",
+					Status:      StatusInactive,
+					TotalClicks: 0,
+					CreatedAt:   time.Date(2026, 4, 30, 7, 0, 0, 0, time.UTC),
+					UpdatedAt:   time.Date(2026, 4, 30, 8, 0, 0, 0, time.UTC),
+				},
+			}, 2, nil
+		},
+	}
+
+	handler := NewHandler(NewService(repo), "https://tracklink.example.com")
+	auth := httpmiddleware.NewAuth(fakeSessionStore{
+		getFn: func(_ context.Context, _ string) (session.SessionData, error) {
+			return session.SessionData{
+				UserID: "b3f4c113-6f22-42f2-8b45-6e88b2f9b71a",
+				Role:   "customer",
+			}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/links", nil)
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+	rr := httptest.NewRecorder()
+	auth.RequireAuth(http.HandlerFunc(handler.List)).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+
+	var resp LinkListResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(resp.Items))
+	}
+
+	first := resp.Items[0]
+	if first.ID == "" || first.OwnerID == "" || first.Code == "" || first.ShortURL == "" || first.TargetURL == "" || first.Status == "" || first.CreatedAt == "" || first.UpdatedAt == "" {
+		t.Fatalf("first item has missing required fields: %+v", first)
+	}
+	if first.CustomAlias == nil || *first.CustomAlias != "campaign" {
+		t.Fatalf("expected custom alias campaign, got %v", first.CustomAlias)
+	}
+	if first.ShortURL != "https://tracklink.example.com/campaign" {
+		t.Fatalf("unexpected shortUrl for alias item: %s", first.ShortURL)
+	}
+	if first.LastClickedAt == nil {
+		t.Fatal("expected lastClickedAt to be present")
+	}
+
+	second := resp.Items[1]
+	if second.CustomAlias != nil {
+		t.Fatalf("expected nil customAlias for second item, got %v", second.CustomAlias)
+	}
+	if second.ShortURL != "https://tracklink.example.com/noalias" {
+		t.Fatalf("unexpected shortUrl for code item: %s", second.ShortURL)
+	}
+	if second.LastClickedAt != nil {
+		t.Fatalf("expected nil lastClickedAt for second item, got %v", second.LastClickedAt)
+	}
+}
+
