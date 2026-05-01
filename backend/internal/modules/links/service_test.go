@@ -39,6 +39,15 @@ func (f fakeRepository) ExistsByCustomAlias(ctx context.Context, customAlias str
 func TestServiceCreateSuccess(t *testing.T) {
 	repo := fakeRepository{
 		createFn: func(_ context.Context, link *Link) error {
+			if link.OwnerID != "c7364dce-f6fd-4ec4-b7bc-f2a95f2f9de8" {
+				t.Fatalf("unexpected owner id in create: %s", link.OwnerID)
+			}
+			if link.TargetURL != "https://example.com/landing" {
+				t.Fatalf("unexpected target url in create: %s", link.TargetURL)
+			}
+			if link.Status != StatusActive {
+				t.Fatalf("unexpected status in create: %s", link.Status)
+			}
 			link.ID = "9e1f66cf-4f5c-421f-97fa-bf4a9f34ef7a"
 			return nil
 		},
