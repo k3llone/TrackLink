@@ -270,6 +270,53 @@ func TestHandlerListSuccessWithQueryParams(t *testing.T) {
 	}
 }
 
+func TestHandlerListSearchQueryByCodeAliasAndTargetURL(t *testing.T) {
+	testCases := []struct {
+		name string
+		q    string
+	}{
+		{name: "code or alias search", q: "spring"},
+		{name: "target url search", q: "example.com/landing"},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			repo := fakeRepository{
+				listByOwnerFn: func(_ context.Context, filter ListLinksFilter) ([]Link, int64, error) {
+					if filter.OwnerID != "owner-1" {
+						t.Fatalf("unexpected ownerID: %s", filter.OwnerID)
+					}
+					if filter.Q != tc.q {
+						t.Fatalf("expected q=%s, got %s", tc.q, filter.Q)
+					}
+					return []Link{}, 0, nil
+				},
+			}
+
+			handler := NewHandler(NewService(repo), "https://tracklink.example.com")
+			auth := httpmiddleware.NewAuth(fakeSessionStore{
+				getFn: func(_ context.Context, _ string) (session.SessionData, error) {
+					return session.SessionData{
+						UserID: "owner-1",
+						Role:   "customer",
+					}, nil
+				},
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/links?q="+tc.q, nil)
+			req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+			rr := httptest.NewRecorder()
+
+			auth.RequireAuth(http.HandlerFunc(handler.List)).ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("expected status %d, got %d", http.StatusOK, rr.Code)
+			}
+		})
+	}
+}
+
 func TestHandlerListInvalidQueryReturnsValidationError(t *testing.T) {
 	handler := NewHandler(NewService(fakeRepository{}), "https://tracklink.example.com")
 	auth := httpmiddleware.NewAuth(fakeSessionStore{
@@ -297,6 +344,54 @@ func TestHandlerListInvalidQueryReturnsValidationError(t *testing.T) {
 	}
 	if resp.Error.Code != "validation_error" {
 		t.Fatalf("unexpected error code: %s", resp.Error.Code)
+	}
+}
+
+func TestHandlerListEmptyResultReturnsEmptyItemsArray(t *testing.T) {
+	repo := fakeRepository{
+		listByOwnerFn: func(_ context.Context, filter ListLinksFilter) ([]Link, int64, error) {
+			if filter.OwnerID != "owner-1" {
+				t.Fatalf("unexpected ownerID: %s", filter.OwnerID)
+			}
+			return nil, 0, nil
+		},
+	}
+
+	handler := NewHandler(NewService(repo), "https://tracklink.example.com")
+	auth := httpmiddleware.NewAuth(fakeSessionStore{
+		getFn: func(_ context.Context, _ string) (session.SessionData, error) {
+			return session.SessionData{
+				UserID: "owner-1",
+				Role:   "customer",
+			}, nil
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/links?q=missing", nil)
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-1"})
+	rr := httptest.NewRecorder()
+
+	auth.RequireAuth(http.HandlerFunc(handler.List)).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	itemsRaw, ok := payload["items"]
+	if !ok {
+		t.Fatalf("items key is missing in response: %v", payload)
+	}
+	items, ok := itemsRaw.([]any)
+	if !ok {
+		t.Fatalf("items must be an array, got %T", itemsRaw)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expected empty items array, got len=%d", len(items))
 	}
 }
 

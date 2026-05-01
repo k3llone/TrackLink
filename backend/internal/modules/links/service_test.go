@@ -369,6 +369,48 @@ func TestServiceListSuccess(t *testing.T) {
 	}
 }
 
+func TestServiceListTrimsSearchAndCombinesWithStatusPagination(t *testing.T) {
+	repo := fakeRepository{
+		listByOwnerFn: func(_ context.Context, filter ListLinksFilter) ([]Link, int64, error) {
+			if filter.OwnerID != "owner-1" {
+				t.Fatalf("unexpected owner id: %s", filter.OwnerID)
+			}
+			if filter.Page != 1 {
+				t.Fatalf("expected page 1, got %d", filter.Page)
+			}
+			if filter.PageSize != 20 {
+				t.Fatalf("expected default pageSize 20, got %d", filter.PageSize)
+			}
+			if filter.Status != StatusInactive {
+				t.Fatalf("expected status inactive, got %s", filter.Status)
+			}
+			if filter.Q != "example.com/path" {
+				t.Fatalf("expected trimmed q=example.com/path, got %q", filter.Q)
+			}
+			return []Link{}, 0, nil
+		},
+	}
+
+	service := NewService(repo)
+	items, pagination, fields, err := service.List(context.Background(), "owner-1", ListLinksQuery{
+		Q:      "  example.com/path  ",
+		Status: StatusInactive,
+	})
+
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expected no items, got %d", len(items))
+	}
+	if pagination.Page != 1 || pagination.PageSize != 20 || pagination.TotalItems != 0 || pagination.TotalPages != 0 {
+		t.Fatalf("unexpected pagination: %+v", pagination)
+	}
+}
+
 func TestServiceListValidation(t *testing.T) {
 	service := NewService(fakeRepository{})
 
