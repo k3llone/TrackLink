@@ -10,9 +10,25 @@ import (
 )
 
 type fakeDashboardRepository struct {
+	countTotalLinksFn func(ctx context.Context, ownerID string) (int64, error)
+	countActiveLinksFn func(ctx context.Context, ownerID string) (int64, error)
 	sumTotalClicksFn func(ctx context.Context, ownerID string) (int64, error)
 	countClicksSinceFn func(ctx context.Context, ownerID string, since time.Time) (int64, error)
 	listRecentLinksFn func(ctx context.Context, ownerID string, limit int) ([]links.Link, error)
+}
+
+func (f fakeDashboardRepository) CountTotalLinks(ctx context.Context, ownerID string) (int64, error) {
+	if f.countTotalLinksFn == nil {
+		return 0, nil
+	}
+	return f.countTotalLinksFn(ctx, ownerID)
+}
+
+func (f fakeDashboardRepository) CountActiveLinks(ctx context.Context, ownerID string) (int64, error) {
+	if f.countActiveLinksFn == nil {
+		return 0, nil
+	}
+	return f.countActiveLinksFn(ctx, ownerID)
 }
 
 func (f fakeDashboardRepository) SumTotalClicks(ctx context.Context, ownerID string) (int64, error) {
@@ -41,6 +57,18 @@ func TestServiceLoadDashboardReturnsTotalClicksAndRecentLinks(t *testing.T) {
 	updatedAt := createdAt.Add(2 * time.Hour)
 	lastClickedAt := createdAt.Add(6 * time.Hour)
 	repo := fakeDashboardRepository{
+		countTotalLinksFn: func(_ context.Context, ownerID string) (int64, error) {
+			if ownerID != "owner-1" {
+				t.Fatalf("expected owner-1, got %s", ownerID)
+			}
+			return 3, nil
+		},
+		countActiveLinksFn: func(_ context.Context, ownerID string) (int64, error) {
+			if ownerID != "owner-1" {
+				t.Fatalf("expected owner-1, got %s", ownerID)
+			}
+			return 2, nil
+		},
 		sumTotalClicksFn: func(_ context.Context, ownerID string) (int64, error) {
 			if ownerID != "owner-1" {
 				t.Fatalf("expected owner-1, got %s", ownerID)
@@ -90,6 +118,12 @@ func TestServiceLoadDashboardReturnsTotalClicksAndRecentLinks(t *testing.T) {
 	if resp.TotalClicks != 42 {
 		t.Fatalf("expected total clicks 42, got %d", resp.TotalClicks)
 	}
+	if resp.TotalLinks != 3 {
+		t.Fatalf("expected total links 3, got %d", resp.TotalLinks)
+	}
+	if resp.ActiveLinks != 2 {
+		t.Fatalf("expected active links 2, got %d", resp.ActiveLinks)
+	}
 	if resp.ClicksLast24 != 5 {
 		t.Fatalf("expected clicksLast24h 5, got %d", resp.ClicksLast24)
 	}
@@ -101,9 +135,6 @@ func TestServiceLoadDashboardReturnsTotalClicksAndRecentLinks(t *testing.T) {
 	}
 	if resp.RecentLinks[0].TotalClicks != 42 {
 		t.Fatalf("expected link total clicks 42, got %d", resp.RecentLinks[0].TotalClicks)
-	}
-	if resp.TotalLinks != 0 || resp.ActiveLinks != 0 {
-		t.Fatalf("expected other aggregates to be zero, got %+v", resp)
 	}
 }
 
@@ -126,6 +157,20 @@ func TestServiceLoadDashboardReturnsErrorWhenCountClicksSinceFails(t *testing.T)
 		},
 		countClicksSinceFn: func(_ context.Context, _ string, _ time.Time) (int64, error) {
 			return 0, errors.New("count failed")
+		},
+	}
+	service := NewService(repo, "https://tracklink.example.com")
+
+	_, _, err := service.LoadDashboard(context.Background(), "owner-1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestServiceLoadDashboardReturnsErrorWhenTotalLinksFails(t *testing.T) {
+	repo := fakeDashboardRepository{
+		countTotalLinksFn: func(_ context.Context, _ string) (int64, error) {
+			return 0, errors.New("count links failed")
 		},
 	}
 	service := NewService(repo, "https://tracklink.example.com")

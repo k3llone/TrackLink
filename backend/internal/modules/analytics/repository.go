@@ -53,6 +53,38 @@ func (r *GormRepository) CreateClickEvent(ctx context.Context, event CreateClick
 	return nil
 }
 
+func (r *GormRepository) CountTotalLinks(ctx context.Context, ownerID string) (int64, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("count total links: db is nil")
+	}
+
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&links.Link{}).
+		Where("owner_id = ? AND status <> ? AND deleted_at IS NULL", ownerID, links.StatusDeleted).
+		Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("count total links: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *GormRepository) CountActiveLinks(ctx context.Context, ownerID string) (int64, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("count active links: db is nil")
+	}
+
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&links.Link{}).
+		Where("owner_id = ? AND status = ? AND deleted_at IS NULL", ownerID, links.StatusActive).
+		Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("count active links: %w", err)
+	}
+
+	return count, nil
+}
+
 func (r *GormRepository) SumTotalClicks(ctx context.Context, ownerID string) (int64, error) {
 	if r.db == nil {
 		return 0, fmt.Errorf("sum total clicks: db is nil")

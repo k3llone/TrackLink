@@ -28,11 +28,32 @@ func TestHandlerDashboardUnauthorized(t *testing.T) {
 
 func TestHandlerDashboardSuccess(t *testing.T) {
 	repo := fakeDashboardRepository{
+		countTotalLinksFn: func(_ context.Context, ownerID string) (int64, error) {
+			if ownerID != "owner-1" {
+				t.Fatalf("expected owner-1, got %s", ownerID)
+			}
+			return 4, nil
+		},
+		countActiveLinksFn: func(_ context.Context, ownerID string) (int64, error) {
+			if ownerID != "owner-1" {
+				t.Fatalf("expected owner-1, got %s", ownerID)
+			}
+			return 3, nil
+		},
 		sumTotalClicksFn: func(_ context.Context, ownerID string) (int64, error) {
 			if ownerID != "owner-1" {
 				t.Fatalf("expected owner-1, got %s", ownerID)
 			}
 			return 7, nil
+		},
+		countClicksSinceFn: func(_ context.Context, ownerID string, since time.Time) (int64, error) {
+			if ownerID != "owner-1" {
+				t.Fatalf("expected owner-1, got %s", ownerID)
+			}
+			if since.IsZero() {
+				t.Fatal("expected non-zero since")
+			}
+			return 2, nil
 		},
 		listRecentLinksFn: func(_ context.Context, _ string, _ int) ([]links.Link, error) {
 			now := time.Date(2026, 5, 2, 9, 0, 0, 0, time.UTC)
@@ -69,6 +90,15 @@ func TestHandlerDashboardSuccess(t *testing.T) {
 	}
 	if resp.TotalClicks != 7 {
 		t.Fatalf("expected total clicks 7, got %d", resp.TotalClicks)
+	}
+	if resp.TotalLinks != 4 {
+		t.Fatalf("expected total links 4, got %d", resp.TotalLinks)
+	}
+	if resp.ActiveLinks != 3 {
+		t.Fatalf("expected active links 3, got %d", resp.ActiveLinks)
+	}
+	if resp.ClicksLast24 != 2 {
+		t.Fatalf("expected clicksLast24h 2, got %d", resp.ClicksLast24)
 	}
 	if len(resp.RecentLinks) != 1 {
 		t.Fatalf("expected one recent link, got %d", len(resp.RecentLinks))

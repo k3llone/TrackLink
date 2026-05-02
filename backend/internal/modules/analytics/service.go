@@ -14,6 +14,8 @@ const defaultRecentLinksLimit = 5
 var ErrValidation = errors.New("validation failed")
 
 type DashboardRepository interface {
+	CountTotalLinks(ctx context.Context, ownerID string) (int64, error)
+	CountActiveLinks(ctx context.Context, ownerID string) (int64, error)
 	SumTotalClicks(ctx context.Context, ownerID string) (int64, error)
 	CountClicksSince(ctx context.Context, ownerID string, since time.Time) (int64, error)
 	ListRecentLinks(ctx context.Context, ownerID string, limit int) ([]links.Link, error)
@@ -46,6 +48,14 @@ func (s *Service) LoadDashboard(ctx context.Context, userID string) (DashboardRe
 		return DashboardResponse{}, fields, ErrValidation
 	}
 
+	totalLinks, err := s.repo.CountTotalLinks(ctx, ownerID)
+	if err != nil {
+		return DashboardResponse{}, nil, err
+	}
+	activeLinks, err := s.repo.CountActiveLinks(ctx, ownerID)
+	if err != nil {
+		return DashboardResponse{}, nil, err
+	}
 	totalClicks, err := s.repo.SumTotalClicks(ctx, ownerID)
 	if err != nil {
 		return DashboardResponse{}, nil, err
@@ -65,8 +75,8 @@ func (s *Service) LoadDashboard(ctx context.Context, userID string) (DashboardRe
 	}
 
 	return DashboardResponse{
-		TotalLinks:   0,
-		ActiveLinks:  0,
+		TotalLinks:   totalLinks,
+		ActiveLinks:  activeLinks,
 		TotalClicks:  totalClicks,
 		ClicksLast24: clicksLast24h,
 		RecentLinks:  recent,
