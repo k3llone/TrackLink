@@ -15,6 +15,7 @@ import (
 	httpmiddleware "tracklink/internal/http/middleware"
 	"tracklink/internal/modules/accounts"
 	"tracklink/internal/modules/links"
+	"tracklink/internal/modules/redirect"
 	"tracklink/internal/platform/session"
 )
 
@@ -58,6 +59,9 @@ func NewRouter(deps Deps) *chi.Mux {
 	linkRepo := links.NewGormRepository(deps.DB)
 	linkService := links.NewService(linkRepo)
 	linkHandler := links.NewHandler(linkService, deps.Config.PublicURL)
+	redirectRepo := redirect.NewGormRepository(deps.DB)
+	redirectService := redirect.NewService(redirectRepo)
+	redirectHandler := redirect.NewHandler(redirectService)
 	apiV1.Post("/auth/register", accountHandler.Register)
 	apiV1.Post("/auth/login", accountHandler.Login)
 	apiV1.With(authMiddleware.RequireAuth).Post("/auth/logout", accountHandler.Logout)
@@ -68,10 +72,7 @@ func NewRouter(deps Deps) *chi.Mux {
 	apiV1.With(authMiddleware.RequireAuth).Delete("/links/{linkId}", linkHandler.Delete)
 	r.Mount("/api/v1", apiV1)
 
-	r.Get("/{code}", func(w http.ResponseWriter, _ *http.Request) {
-		_ = deps
-		http.Error(w, "redirect handler is not implemented yet", http.StatusNotImplemented)
-	})
+	r.Get("/{code}", redirectHandler.RedirectByCode)
 
 	return r
 }
