@@ -20,6 +20,7 @@ type fakeDashboardRepository struct {
 	countLinkClicksSinceFn func(ctx context.Context, linkID string, since time.Time) (int64, error)
 	lastLinkClickedAtFn    func(ctx context.Context, linkID string, from, to time.Time) (*time.Time, error)
 	listLinkClickSeriesFn  func(ctx context.Context, linkID string, from, to time.Time, groupBy string) ([]TimeSeriesBucket, error)
+	listRecentClicksFn     func(ctx context.Context, linkID string, limit int) ([]ClickEvent, error)
 }
 
 func (f fakeDashboardRepository) CountTotalLinks(ctx context.Context, ownerID string) (int64, error) {
@@ -90,6 +91,13 @@ func (f fakeDashboardRepository) ListLinkClickSeries(ctx context.Context, linkID
 		return nil, nil
 	}
 	return f.listLinkClickSeriesFn(ctx, linkID, from, to, groupBy)
+}
+
+func (f fakeDashboardRepository) ListRecentClicks(ctx context.Context, linkID string, limit int) ([]ClickEvent, error) {
+	if f.listRecentClicksFn == nil {
+		return nil, nil
+	}
+	return f.listRecentClicksFn(ctx, linkID, limit)
 }
 
 func TestServiceLoadDashboardReturnsTotalClicksAndRecentLinks(t *testing.T) {
@@ -421,5 +429,129 @@ func TestServiceLoadLinkAnalyticsRejectsInvalidPeriod(t *testing.T) {
 	}
 	if fields["from"] == "" {
 		t.Fatalf("expected from validation field, got %v", fields)
+	}
+}
+
+func TestServiceLoadRecentClicksReturnsItemsAndDefaultLimit(t *testing.T) {
+	clickedAt := time.Date(2026, 5, 2, 12, 30, 0, 0, time.UTC)
+	referrer := "https://t.me/example"
+	userAgent := "Mozilla/5.0"
+	var capturedLimit int
+	repo := fakeDashboardRepository{
+		getLinkByIDAndOwnerFn: func(_ context.Context, linkID, ownerID string) (links.Link, error) {
+			if linkID != "link-1" {
+				t.Fatalf("expected link-1, got %s", linkID)
+			}
+			if ownerID != "owner-1" {
+				t.Fatalf("expected owner-1, got %s", ownerID)
+			}
+			return links.Link{ID: "link-1", OwnerID: "owner-1"}, nil
+		},
+		listRecentClicksFn: func(_ context.Context, linkID string, limit int) ([]ClickEvent, error) {
+			if linkID != "link-1" {
+				t.Fatalf("expected link-1, got %s", linkID)
+			}
+			capturedLimit = limit
+			return []ClickEvent{
+				{
+					ID:        "click-1",
+					LinkID:    "link-1",
+					ClickedAt: clickedAt,
+					Referrer:  &referrer,
+					UserAgent: &userAgent,
+				},
+			}, nil
+		},
+	}
+	service := NewService(repo, "https://tracklink.example.com")
+
+	resp, fields, err := service.LoadRecentClicks(context.Background(), "owner-1", " link-1 ", RecentClicksQuery{})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if len(fields) != 0 {
+		t.Fatalf("expected empty fields, got %v", fields)
+	}
+	if capturedLimit != defaultRecentClicksLimit {
+		t.Fatalf("expected default limit %d, got %d", defaultRecentClicksLimit, capturedLimit)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected one click, got %d", len(resp.Items))
+	}
+	item := resp.Items[0]
+	if item.ID != "click-1" || item.LinkID != "link-1" {
+		t.Fatalf("unexpected item identity: %+v", item)
+	}
+	if item.ClickedAt != clickedAt.Format(time.RFC3339) {
+		t.Fatalf("expected clickedAt %s, got %s", clickedAt.Format(time.RFC3339), item.ClickedAt)
+	}
+	if item.Referrer == nil || *item.Referrer != referrer {
+		t.Fatalf("unexpected referrer: %v", item.Referrer)
+	}
+	if item.UserAgent == nil || *item.UserAgent != userAgent {
+		t.Fatalf("unexpected userAgent: %v", item.UserAgent)
+	}
+}
+
+func TestServiceLoadRecentClicksCapsLimit(t *testing.T) {
+	var capturedLimit int
+	repo := fakeDashboardRepository{
+		listRecentClicksFn: func(_ context.Context, _ string, limit int) ([]ClickEvent, error) {
+			capturedLimit = limit
+			return nil, nil
+		},
+	}
+	service := NewService(repo, "https://tracklink.example.com")
+
+	_, _, err := service.LoadRecentClicks(context.Background(), "owner-1", "link-1", RecentClicksQuery{Limit: 150, limitProvided: true})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if capturedLimit != maxRecentClicksLimit {
+		t.Fatalf("expected capped limit %d, got %d", maxRecentClicksLimit, capturedLimit)
+	}
+}
+
+func TestServiceLoadRecentClicksRejectsInvalidLimit(t *testing.T) {
+	tests := []struct {
+		name  string
+		query RecentClicksQuery
+	}{
+		{
+			name:  "zero",
+			query: RecentClicksQuery{Limit: 0, limitProvided: true},
+		},
+		{
+			name:  "negative",
+			query: RecentClicksQuery{Limit: -1, limitProvided: true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := NewService(fakeDashboardRepository{}, "https://tracklink.example.com")
+
+			_, fields, err := service.LoadRecentClicks(context.Background(), "owner-1", "link-1", tt.query)
+			if !errors.Is(err, ErrValidation) {
+				t.Fatalf("expected validation error, got %v", err)
+			}
+			if fields["limit"] == "" {
+				t.Fatalf("expected limit validation field, got %v", fields)
+			}
+		})
+	}
+}
+
+func TestServiceLoadRecentClicksReturnsNotFoundForForeignLink(t *testing.T) {
+	repo := fakeDashboardRepository{
+		getLinkByIDAndOwnerFn: func(_ context.Context, _, _ string) (links.Link, error) {
+			return links.Link{}, ErrLinkNotFound
+		},
+	}
+	service := NewService(repo, "https://tracklink.example.com")
+
+	_, _, err := service.LoadRecentClicks(context.Background(), "owner-1", "foreign-link", RecentClicksQuery{})
+	if !errors.Is(err, ErrLinkNotFound) {
+		t.Fatalf("expected ErrLinkNotFound, got %v", err)
 	}
 }

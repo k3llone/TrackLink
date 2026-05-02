@@ -261,3 +261,27 @@ func (r *GormRepository) ListLinkClickSeries(ctx context.Context, linkID string,
 
 	return buckets, nil
 }
+
+func (r *GormRepository) ListRecentClicks(ctx context.Context, linkID string, limit int) ([]ClickEvent, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("list recent clicks: db is nil")
+	}
+
+	if limit <= 0 {
+		limit = defaultRecentClicksLimit
+	} else if limit > maxRecentClicksLimit {
+		limit = maxRecentClicksLimit
+	}
+
+	items := make([]ClickEvent, 0, limit)
+	if err := r.db.WithContext(ctx).
+		Model(&ClickEvent{}).
+		Where("link_id = ?", linkID).
+		Order("clicked_at DESC").
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list recent clicks: %w", err)
+	}
+
+	return items, nil
+}

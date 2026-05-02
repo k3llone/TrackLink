@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +56,38 @@ func (h *Handler) LinkAnalytics(w http.ResponseWriter, r *http.Request) {
 
 	linkID := strings.TrimSpace(chi.URLParam(r, "linkId"))
 	response, serviceFields, err := h.service.LoadLinkAnalytics(r.Context(), userID, linkID, query)
+	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusBadRequest, "validation_error", "Invalid query parameters", serviceFields)
+			return
+		}
+		if errors.Is(err, ErrLinkNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Resource not found", nil)
+			return
+		}
+
+		writeError(w, http.StatusInternalServerError, "internal_error", "Internal server error", nil)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) RecentClicks(w http.ResponseWriter, r *http.Request) {
+	userID, _, ok := shared.CurrentUserFromContext(r.Context())
+	if !ok || strings.TrimSpace(userID) == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Unauthorized", nil)
+		return
+	}
+
+	query, fields := parseRecentClicksQuery(r)
+	if len(fields) > 0 {
+		writeError(w, http.StatusBadRequest, "validation_error", "Invalid query parameters", fields)
+		return
+	}
+
+	linkID := strings.TrimSpace(chi.URLParam(r, "linkId"))
+	response, serviceFields, err := h.service.LoadRecentClicks(r.Context(), userID, linkID, query)
 	if err != nil {
 		if errors.Is(err, ErrValidation) {
 			writeError(w, http.StatusBadRequest, "validation_error", "Invalid query parameters", serviceFields)
@@ -138,6 +171,28 @@ func parseLinkAnalyticsQuery(r *http.Request) (LinkAnalyticsQuery, map[string]st
 		To:      to,
 		GroupBy: groupBy,
 	}, fields
+}
+
+func parseRecentClicksQuery(r *http.Request) (RecentClicksQuery, map[string]string) {
+	q := r.URL.Query()
+	fields := map[string]string{}
+	query := RecentClicksQuery{
+		Limit: defaultRecentClicksLimit,
+	}
+
+	if rawLimit := strings.TrimSpace(q.Get("limit")); rawLimit != "" {
+		query.limitProvided = true
+		limit, err := strconv.Atoi(rawLimit)
+		if err != nil {
+			fields["limit"] = "Limit must be an integer"
+		} else if limit < 1 {
+			fields["limit"] = "Limit must be greater than or equal to 1"
+		} else {
+			query.Limit = limit
+		}
+	}
+
+	return query, fields
 }
 
 func parseAnalyticsDateTime(value string) (time.Time, error) {

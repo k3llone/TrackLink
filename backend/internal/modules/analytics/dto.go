@@ -20,6 +20,11 @@ type LinkAnalyticsQuery struct {
 	GroupBy string
 }
 
+type RecentClicksQuery struct {
+	Limit         int
+	limitProvided bool
+}
+
 type LinkAnalyticsResponse struct {
 	LinkID        string            `json:"linkId"`
 	TotalClicks   int64             `json:"totalClicks"`
@@ -31,4 +36,16 @@ type LinkAnalyticsResponse struct {
 type TimeSeriesPoint struct {
 	PeriodStart string `json:"periodStart"`
 	Clicks      int64  `json:"clicks"`
+}
+
+type RecentClicksResponse struct {
+	Items []ClickEventResponse `json:"items"`
+}
+
+type ClickEventResponse struct {
+	ID        string  `json:"id"`
+	LinkID    string  `json:"linkId"`
+	ClickedAt string  `json:"clickedAt"`
+	Referrer  *string `json:"referrer"`
+	UserAgent *string `json:"userAgent"`
 }

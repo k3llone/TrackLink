@@ -10,11 +10,13 @@ import (
 )
 
 const (
-	defaultRecentLinksLimit = 5
-	defaultAnalyticsPeriod  = 7 * 24 * time.Hour
-	defaultAnalyticsGroupBy = GroupByDay
-	GroupByHour             = "hour"
-	GroupByDay              = "day"
+	defaultRecentLinksLimit  = 5
+	defaultRecentClicksLimit = 20
+	maxRecentClicksLimit     = 100
+	defaultAnalyticsPeriod   = 7 * 24 * time.Hour
+	defaultAnalyticsGroupBy  = GroupByDay
+	GroupByHour              = "hour"
+	GroupByDay               = "day"
 )
 
 var ErrValidation = errors.New("validation failed")
@@ -36,6 +38,7 @@ type ServiceRepository interface {
 	CountLinkClicksSince(ctx context.Context, linkID string, since time.Time) (int64, error)
 	LastLinkClickedAt(ctx context.Context, linkID string, from, to time.Time) (*time.Time, error)
 	ListLinkClickSeries(ctx context.Context, linkID string, from, to time.Time, groupBy string) ([]TimeSeriesBucket, error)
+	ListRecentClicks(ctx context.Context, linkID string, limit int) ([]ClickEvent, error)
 }
 
 type Service struct {
@@ -185,4 +188,59 @@ func (s *Service) LoadLinkAnalytics(ctx context.Context, userID, linkID string, 
 		LastClickedAt: lastClickedAtValue,
 		Series:        series,
 	}, nil, nil
+}
+
+func (s *Service) LoadRecentClicks(ctx context.Context, userID, linkID string, query RecentClicksQuery) (RecentClicksResponse, map[string]string, error) {
+	fields := map[string]string{}
+	ownerID := strings.TrimSpace(userID)
+	normalizedLinkID := strings.TrimSpace(linkID)
+	if ownerID == "" {
+		fields["ownerId"] = "Owner ID is required"
+	}
+	if normalizedLinkID == "" {
+		fields["linkId"] = "Link ID is required"
+	}
+	if s.repo == nil {
+		fields["repository"] = "Repository is required"
+	}
+
+	limit := query.Limit
+	if limit == 0 && !query.limitProvided {
+		limit = defaultRecentClicksLimit
+	}
+	if limit < 1 {
+		fields["limit"] = "Limit must be greater than or equal to 1"
+	} else if limit > maxRecentClicksLimit {
+		limit = maxRecentClicksLimit
+	}
+
+	if len(fields) > 0 {
+		return RecentClicksResponse{}, fields, ErrValidation
+	}
+
+	link, err := s.repo.GetLinkByIDAndOwner(ctx, normalizedLinkID, ownerID)
+	if err != nil {
+		if errors.Is(err, ErrLinkNotFound) || errors.Is(err, links.ErrLinkNotFound) {
+			return RecentClicksResponse{}, nil, ErrLinkNotFound
+		}
+		return RecentClicksResponse{}, nil, err
+	}
+
+	events, err := s.repo.ListRecentClicks(ctx, link.ID, limit)
+	if err != nil {
+		return RecentClicksResponse{}, nil, err
+	}
+
+	items := make([]ClickEventResponse, 0, len(events))
+	for _, event := range events {
+		items = append(items, ClickEventResponse{
+			ID:        event.ID,
+			LinkID:    event.LinkID,
+			ClickedAt: event.ClickedAt.UTC().Format(time.RFC3339),
+			Referrer:  event.Referrer,
+			UserAgent: event.UserAgent,
+		})
+	}
+
+	return RecentClicksResponse{Items: items}, nil, nil
 }
