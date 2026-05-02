@@ -281,3 +281,67 @@ func TestServiceResolveSetsClickedAtWhenMetaIsZero(t *testing.T) {
 		t.Fatalf("expected UTC location, got %v", capturedClickedAt.Location())
 	}
 }
+
+func TestServiceResolveTracksClickWithResolvedLinkIDForAlias(t *testing.T) {
+	var capturedLinkID string
+	repo := fakeRepository{
+		findByCodeOrAliasFn: func(_ context.Context, code string) (Link, error) {
+			if code != "campaign" {
+				t.Fatalf("expected alias campaign, got %s", code)
+			}
+			return Link{
+				ID:          "link-alias-42",
+				Code:        "abc123",
+				CustomAlias: ptrString("campaign"),
+				TargetURL:   "https://example.com/campaign",
+				Status:      StatusActive,
+			}, nil
+		},
+	}
+	analyticsRepo := fakeAnalyticsRepository{
+		createClickEventFn: func(_ context.Context, event analytics.CreateClickEventParams) error {
+			capturedLinkID = event.LinkID
+			return nil
+		},
+	}
+
+	service := NewService(repo, analyticsRepo)
+	_, err := service.ResolveAndTrack(context.Background(), "campaign", RequestMeta{})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if capturedLinkID != "link-alias-42" {
+		t.Fatalf("expected click event linked to link-alias-42, got %s", capturedLinkID)
+	}
+}
+
+func TestServiceResolveNotFoundDoesNotCreateClickEvent(t *testing.T) {
+	wasCalled := false
+	repo := fakeRepository{
+		findByCodeOrAliasFn: func(_ context.Context, _ string) (Link, error) {
+			return Link{}, ErrLinkNotFound
+		},
+	}
+	analyticsRepo := fakeAnalyticsRepository{
+		createClickEventFn: func(_ context.Context, _ analytics.CreateClickEventParams) error {
+			wasCalled = true
+			return nil
+		},
+	}
+
+	service := NewService(repo, analyticsRepo)
+	result, err := service.ResolveAndTrack(context.Background(), "missing", RequestMeta{})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result.Kind != ResultKindNotFound {
+		t.Fatalf("expected not found result kind, got %s", result.Kind)
+	}
+	if wasCalled {
+		t.Fatal("expected click event not to be created for missing link")
+	}
+}
+
+func ptrString(value string) *string {
+	return &value
+}
