@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"tracklink/internal/modules/analytics"
 )
 
 func TestHandlerRedirectByCodeReturnsNotFound(t *testing.T) {
@@ -17,7 +18,7 @@ func TestHandlerRedirectByCodeReturnsNotFound(t *testing.T) {
 			return Link{}, ErrLinkNotFound
 		},
 	}
-	handler := NewHandler(NewService(repo))
+	handler := NewHandler(NewService(repo, fakeAnalyticsRepository{}))
 	router := chi.NewRouter()
 	router.Get("/{code}", handler.RedirectByCode)
 
@@ -81,15 +82,12 @@ func TestHandlerRedirectByCodeReturnsStatusPagesForUnavailableLink(t *testing.T)
 				findByCodeOrAliasFn: func(_ context.Context, _ string) (Link, error) {
 					return tt.link, nil
 				},
-				createClickEventFn: func(_ context.Context, _ ClickEvent) error {
-					return nil
-				},
 				touchActiveLinkFn: func(_ context.Context, _ string, _ time.Time) error {
 					t.Fatal("touch active link should not be called for unavailable statuses")
 					return nil
 				},
 			}
-			handler := NewHandler(NewService(repo))
+			handler := NewHandler(NewService(repo, fakeAnalyticsRepository{}))
 			router := chi.NewRouter()
 			router.Get("/{code}", handler.RedirectByCode)
 
@@ -113,6 +111,15 @@ func TestHandlerRedirectByCodeReturnsStatusPagesForUnavailableLink(t *testing.T)
 func TestHandlerRedirectByCodeResolvesActiveLink(t *testing.T) {
 	clicked := false
 	touched := false
+	analyticsRepo := fakeAnalyticsRepository{
+		createClickEventFn: func(_ context.Context, event analytics.CreateClickEventParams) error {
+			clicked = true
+			if event.LinkID != "link-1" {
+				t.Fatalf("expected link id link-1, got %s", event.LinkID)
+			}
+			return nil
+		},
+	}
 	repo := fakeRepository{
 		findByCodeOrAliasFn: func(_ context.Context, code string) (Link, error) {
 			if code != "promo" {
@@ -125,13 +132,6 @@ func TestHandlerRedirectByCodeResolvesActiveLink(t *testing.T) {
 				Status:    StatusActive,
 			}, nil
 		},
-		createClickEventFn: func(_ context.Context, event ClickEvent) error {
-			clicked = true
-			if event.LinkID != "link-1" {
-				t.Fatalf("expected link id link-1, got %s", event.LinkID)
-			}
-			return nil
-		},
 		touchActiveLinkFn: func(_ context.Context, linkID string, _ time.Time) error {
 			touched = true
 			if linkID != "link-1" {
@@ -140,7 +140,7 @@ func TestHandlerRedirectByCodeResolvesActiveLink(t *testing.T) {
 			return nil
 		},
 	}
-	handler := NewHandler(NewService(repo))
+	handler := NewHandler(NewService(repo, analyticsRepo))
 	router := chi.NewRouter()
 	router.Get("/{code}", handler.RedirectByCode)
 
