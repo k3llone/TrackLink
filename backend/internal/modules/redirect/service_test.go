@@ -211,3 +211,73 @@ func TestServiceResolveKeepsRedirectWhenAnalyticsSaveFails(t *testing.T) {
 		t.Fatal("expected active link click stats to be updated")
 	}
 }
+
+func TestServiceResolveNormalizesClickedAtToUTC(t *testing.T) {
+	var capturedClickedAt time.Time
+	repo := fakeRepository{
+		findByCodeOrAliasFn: func(_ context.Context, _ string) (Link, error) {
+			return Link{
+				ID:        "link-utc",
+				Code:      "tz",
+				TargetURL: "https://example.com/tz",
+				Status:    StatusActive,
+			}, nil
+		},
+	}
+	analyticsRepo := fakeAnalyticsRepository{
+		createClickEventFn: func(_ context.Context, event analytics.CreateClickEventParams) error {
+			capturedClickedAt = event.ClickedAt
+			return nil
+		},
+	}
+
+	localClickedAt := time.Date(2026, 5, 2, 16, 45, 0, 0, time.FixedZone("UTC+3", 3*60*60))
+	service := NewService(repo, analyticsRepo)
+	_, err := service.ResolveAndTrack(context.Background(), "tz", RequestMeta{
+		ClickedAt: localClickedAt,
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if capturedClickedAt.IsZero() {
+		t.Fatal("expected analytics repository to receive clicked at value")
+	}
+	if capturedClickedAt.Location() != time.UTC {
+		t.Fatalf("expected UTC location, got %v", capturedClickedAt.Location())
+	}
+	if !capturedClickedAt.Equal(localClickedAt.UTC()) {
+		t.Fatalf("expected clickedAt %v, got %v", localClickedAt.UTC(), capturedClickedAt)
+	}
+}
+
+func TestServiceResolveSetsClickedAtWhenMetaIsZero(t *testing.T) {
+	var capturedClickedAt time.Time
+	repo := fakeRepository{
+		findByCodeOrAliasFn: func(_ context.Context, _ string) (Link, error) {
+			return Link{
+				ID:        "link-now",
+				Code:      "now",
+				TargetURL: "https://example.com/now",
+				Status:    StatusActive,
+			}, nil
+		},
+	}
+	analyticsRepo := fakeAnalyticsRepository{
+		createClickEventFn: func(_ context.Context, event analytics.CreateClickEventParams) error {
+			capturedClickedAt = event.ClickedAt
+			return nil
+		},
+	}
+
+	service := NewService(repo, analyticsRepo)
+	_, err := service.ResolveAndTrack(context.Background(), "now", RequestMeta{})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if capturedClickedAt.IsZero() {
+		t.Fatal("expected non-zero clickedAt when request meta is zero")
+	}
+	if capturedClickedAt.Location() != time.UTC {
+		t.Fatalf("expected UTC location, got %v", capturedClickedAt.Location())
+	}
+}
