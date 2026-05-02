@@ -73,6 +73,24 @@ func (r *GormRepository) SumTotalClicks(ctx context.Context, ownerID string) (in
 	return row.Value, nil
 }
 
+func (r *GormRepository) CountClicksSince(ctx context.Context, ownerID string, since time.Time) (int64, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("count clicks since: db is nil")
+	}
+
+	var count int64
+	err := r.db.WithContext(ctx).
+		Table("click_events").
+		Joins("JOIN links ON links.id = click_events.link_id").
+		Where("links.owner_id = ? AND click_events.clicked_at >= ?", ownerID, since.UTC()).
+		Count(&count).Error
+	if err != nil {
+		return 0, fmt.Errorf("count clicks since: %w", err)
+	}
+
+	return count, nil
+}
+
 func (r *GormRepository) ListRecentLinks(ctx context.Context, ownerID string, limit int) ([]links.Link, error) {
 	if r.db == nil {
 		return nil, fmt.Errorf("list recent links: db is nil")

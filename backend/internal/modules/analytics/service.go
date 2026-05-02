@@ -15,6 +15,7 @@ var ErrValidation = errors.New("validation failed")
 
 type DashboardRepository interface {
 	SumTotalClicks(ctx context.Context, ownerID string) (int64, error)
+	CountClicksSince(ctx context.Context, ownerID string, since time.Time) (int64, error)
 	ListRecentLinks(ctx context.Context, ownerID string, limit int) ([]links.Link, error)
 }
 
@@ -49,6 +50,10 @@ func (s *Service) LoadDashboard(ctx context.Context, userID string) (DashboardRe
 	if err != nil {
 		return DashboardResponse{}, nil, err
 	}
+	clicksLast24h, err := s.repo.CountClicksSince(ctx, ownerID, s.now().UTC().Add(-24*time.Hour))
+	if err != nil {
+		return DashboardResponse{}, nil, err
+	}
 	recentLinks, err := s.repo.ListRecentLinks(ctx, ownerID, defaultRecentLinksLimit)
 	if err != nil {
 		return DashboardResponse{}, nil, err
@@ -63,7 +68,7 @@ func (s *Service) LoadDashboard(ctx context.Context, userID string) (DashboardRe
 		TotalLinks:   0,
 		ActiveLinks:  0,
 		TotalClicks:  totalClicks,
-		ClicksLast24: 0,
+		ClicksLast24: clicksLast24h,
 		RecentLinks:  recent,
 	}, nil, nil
 }
