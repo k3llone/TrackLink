@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"tracklink/internal/modules/analytics"
 )
 
 const (
@@ -36,11 +38,15 @@ type ResolveResult struct {
 }
 
 type Service struct {
-	repo Repository
+	repo          Repository
+	analyticsRepo analytics.Repository
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo Repository, analyticsRepo analytics.Repository) *Service {
+	return &Service{
+		repo:          repo,
+		analyticsRepo: analyticsRepo,
+	}
 }
 
 func (s *Service) ResolveAndTrack(ctx context.Context, code string, meta RequestMeta) (ResolveResult, error) {
@@ -61,13 +67,15 @@ func (s *Service) ResolveAndTrack(ctx context.Context, code string, meta Request
 	if clickedAt.IsZero() {
 		clickedAt = time.Now().UTC()
 	}
-	if err := s.repo.CreateClickEvent(ctx, ClickEvent{
-		LinkID:    link.ID,
-		ClickedAt: clickedAt,
-		Referrer:  strings.TrimSpace(meta.Referrer),
-		UserAgent: strings.TrimSpace(meta.UserAgent),
-	}); err != nil {
-		return ResolveResult{}, err
+	if s.analyticsRepo != nil {
+		if err := s.analyticsRepo.CreateClickEvent(ctx, analytics.CreateClickEventParams{
+			LinkID:    link.ID,
+			ClickedAt: clickedAt,
+			Referrer:  normalizeNullableString(meta.Referrer),
+			UserAgent: normalizeNullableString(meta.UserAgent),
+		}); err != nil {
+			// Analytics failure must not block redirect flow.
+		}
 	}
 
 	if link.Status == StatusActive && link.DeletedAt == nil {
@@ -86,4 +94,13 @@ func (s *Service) ResolveAndTrack(ctx context.Context, code string, meta Request
 		Status:  link.Status,
 		Deleted: link.Status == StatusDeleted || link.DeletedAt != nil,
 	}, nil
+}
+
+func normalizeNullableString(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+
+	return &trimmed
 }

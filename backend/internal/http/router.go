@@ -14,6 +14,7 @@ import (
 	"tracklink/internal/config"
 	httpmiddleware "tracklink/internal/http/middleware"
 	"tracklink/internal/modules/accounts"
+	"tracklink/internal/modules/analytics"
 	"tracklink/internal/modules/links"
 	"tracklink/internal/modules/redirect"
 	"tracklink/internal/platform/session"
@@ -60,7 +61,8 @@ func NewRouter(deps Deps) *chi.Mux {
 	linkService := links.NewService(linkRepo)
 	linkHandler := links.NewHandler(linkService, deps.Config.PublicURL)
 	redirectRepo := redirect.NewGormRepository(deps.DB)
-	redirectService := redirect.NewService(redirectRepo)
+	analyticsRepo := analytics.NewGormRepository(deps.DB)
+	redirectService := redirect.NewService(redirectRepo, analyticsRepo)
 	redirectHandler := redirect.NewHandler(redirectService)
 	apiV1.Post("/auth/register", accountHandler.Register)
 	apiV1.Post("/auth/login", accountHandler.Login)

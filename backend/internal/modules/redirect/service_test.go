@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"tracklink/internal/modules/analytics"
 )
 
 type fakeRepository struct {
 	findByCodeOrAliasFn func(ctx context.Context, code string) (Link, error)
-	createClickEventFn  func(ctx context.Context, event ClickEvent) error
 	touchActiveLinkFn   func(ctx context.Context, linkID string, clickedAt time.Time) error
 }
 
@@ -20,7 +21,11 @@ func (f fakeRepository) FindByCodeOrAlias(ctx context.Context, code string) (Lin
 	return f.findByCodeOrAliasFn(ctx, code)
 }
 
-func (f fakeRepository) CreateClickEvent(ctx context.Context, event ClickEvent) error {
+type fakeAnalyticsRepository struct {
+	createClickEventFn func(ctx context.Context, event analytics.CreateClickEventParams) error
+}
+
+func (f fakeAnalyticsRepository) CreateClickEvent(ctx context.Context, event analytics.CreateClickEventParams) error {
 	if f.createClickEventFn == nil {
 		return nil
 	}
@@ -39,6 +44,18 @@ func (f fakeRepository) TouchActiveLink(ctx context.Context, linkID string, clic
 func TestServiceResolveByCodeTracksAndRedirectsActive(t *testing.T) {
 	clickedAt := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 	steps := make([]string, 0, 2)
+	analyticsRepo := fakeAnalyticsRepository{
+		createClickEventFn: func(_ context.Context, event analytics.CreateClickEventParams) error {
+			steps = append(steps, "event")
+			if event.LinkID != "link-1" {
+				t.Fatalf("expected link id link-1, got %s", event.LinkID)
+			}
+			if !event.ClickedAt.Equal(clickedAt) {
+				t.Fatalf("expected clickedAt %v, got %v", clickedAt, event.ClickedAt)
+			}
+			return nil
+		},
+	}
 	repo := fakeRepository{
 		findByCodeOrAliasFn: func(_ context.Context, code string) (Link, error) {
 			if code != "abc123" {
@@ -50,16 +67,6 @@ func TestServiceResolveByCodeTracksAndRedirectsActive(t *testing.T) {
 				TargetURL: "https://example.com/landing",
 				Status:    StatusActive,
 			}, nil
-		},
-		createClickEventFn: func(_ context.Context, event ClickEvent) error {
-			steps = append(steps, "event")
-			if event.LinkID != "link-1" {
-				t.Fatalf("expected link id link-1, got %s", event.LinkID)
-			}
-			if !event.ClickedAt.Equal(clickedAt) {
-				t.Fatalf("expected clickedAt %v, got %v", clickedAt, event.ClickedAt)
-			}
-			return nil
 		},
 		touchActiveLinkFn: func(_ context.Context, linkID string, gotClickedAt time.Time) error {
 			steps = append(steps, "touch")
@@ -73,7 +80,7 @@ func TestServiceResolveByCodeTracksAndRedirectsActive(t *testing.T) {
 		},
 	}
 
-	service := NewService(repo)
+	service := NewService(repo, analyticsRepo)
 	result, err := service.ResolveAndTrack(context.Background(), "abc123", RequestMeta{
 		Referrer:  "https://source.example.com",
 		UserAgent: "test-agent",
@@ -101,13 +108,15 @@ func TestServiceResolveByCustomAliasAsNotFoundWhenMissing(t *testing.T) {
 			}
 			return Link{}, ErrLinkNotFound
 		},
-		createClickEventFn: func(_ context.Context, _ ClickEvent) error {
+	}
+	analyticsRepo := fakeAnalyticsRepository{
+		createClickEventFn: func(_ context.Context, _ analytics.CreateClickEventParams) error {
 			t.Fatal("create click event should not be called for not found")
 			return nil
 		},
 	}
 
-	service := NewService(repo)
+	service := NewService(repo, analyticsRepo)
 	result, err := service.ResolveAndTrack(context.Background(), "promo", RequestMeta{})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -119,6 +128,15 @@ func TestServiceResolveByCustomAliasAsNotFoundWhenMissing(t *testing.T) {
 
 func TestServiceResolveTracksUnavailableWithoutTouch(t *testing.T) {
 	clicked := false
+	analyticsRepo := fakeAnalyticsRepository{
+		createClickEventFn: func(_ context.Context, event analytics.CreateClickEventParams) error {
+			clicked = true
+			if event.LinkID != "link-3" {
+				t.Fatalf("expected link id link-3, got %s", event.LinkID)
+			}
+			return nil
+		},
+	}
 	repo := fakeRepository{
 		findByCodeOrAliasFn: func(_ context.Context, code string) (Link, error) {
 			if code != "blocked-link" {
@@ -131,20 +149,13 @@ func TestServiceResolveTracksUnavailableWithoutTouch(t *testing.T) {
 				Status:    StatusBlocked,
 			}, nil
 		},
-		createClickEventFn: func(_ context.Context, event ClickEvent) error {
-			clicked = true
-			if event.LinkID != "link-3" {
-				t.Fatalf("expected link id link-3, got %s", event.LinkID)
-			}
-			return nil
-		},
 		touchActiveLinkFn: func(_ context.Context, _ string, _ time.Time) error {
 			t.Fatal("touch active link must not be called for blocked link")
 			return nil
 		},
 	}
 
-	service := NewService(repo)
+	service := NewService(repo, analyticsRepo)
 	result, err := service.ResolveAndTrack(context.Background(), "blocked-link", RequestMeta{})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -157,5 +168,46 @@ func TestServiceResolveTracksUnavailableWithoutTouch(t *testing.T) {
 	}
 	if !clicked {
 		t.Fatal("expected click event to be created for unavailable link")
+	}
+}
+
+func TestServiceResolveKeepsRedirectWhenAnalyticsSaveFails(t *testing.T) {
+	touched := false
+	repo := fakeRepository{
+		findByCodeOrAliasFn: func(_ context.Context, _ string) (Link, error) {
+			return Link{
+				ID:        "link-10",
+				Code:      "go",
+				TargetURL: "https://example.com/go",
+				Status:    StatusActive,
+			}, nil
+		},
+		touchActiveLinkFn: func(_ context.Context, linkID string, _ time.Time) error {
+			touched = true
+			if linkID != "link-10" {
+				t.Fatalf("expected link id link-10, got %s", linkID)
+			}
+			return nil
+		},
+	}
+	analyticsRepo := fakeAnalyticsRepository{
+		createClickEventFn: func(_ context.Context, _ analytics.CreateClickEventParams) error {
+			return context.DeadlineExceeded
+		},
+	}
+
+	service := NewService(repo, analyticsRepo)
+	result, err := service.ResolveAndTrack(context.Background(), "go", RequestMeta{})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result.Kind != ResultKindRedirect {
+		t.Fatalf("expected redirect result, got %s", result.Kind)
+	}
+	if result.TargetURL != "https://example.com/go" {
+		t.Fatalf("expected target url to match, got %s", result.TargetURL)
+	}
+	if !touched {
+		t.Fatal("expected active link click stats to be updated")
 	}
 }
