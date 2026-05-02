@@ -406,3 +406,78 @@ func TestAdminRouteRequiresAdmin(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminEndpointsAreMountedAndProtected(t *testing.T) {
+	tests := []struct {
+		name        string
+		method      string
+		path        string
+		sessionID   string
+		sessionData session.SessionData
+		wantStatus  int
+	}{
+		{
+			name:       "list returns unauthorized without session",
+			method:     http.MethodGet,
+			path:       "/api/v1/admin/links",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:      "list returns forbidden for customer",
+			method:    http.MethodGet,
+			path:      "/api/v1/admin/links",
+			sessionID: "session-customer",
+			sessionData: session.SessionData{
+				UserID: "user-1",
+				Role:   accounts.RoleCustomer,
+			},
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "block returns unauthorized without session",
+			method:     http.MethodPatch,
+			path:       "/api/v1/admin/links/link-1/block",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:      "block returns forbidden for customer",
+			method:    http.MethodPatch,
+			path:      "/api/v1/admin/links/link-1/block",
+			sessionID: "session-customer",
+			sessionData: session.SessionData{
+				UserID: "user-1",
+				Role:   accounts.RoleCustomer,
+			},
+			wantStatus: http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
+			if tt.sessionID != "" {
+				store.sessions[tt.sessionID] = tt.sessionData
+			}
+
+			router := NewRouter(Deps{
+				Sessions: store,
+				Config: config.Config{
+					SessionTTL:          24 * time.Hour,
+					SessionCookieSecure: false,
+					PublicURL:           "https://tracklink.example.com",
+				},
+			})
+
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			if tt.sessionID != "" {
+				req.AddCookie(&http.Cookie{Name: "tracklink_session", Value: tt.sessionID})
+			}
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			if rr.Code != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, rr.Code)
+			}
+		})
+	}
+}
