@@ -75,6 +75,8 @@ func NewRouter(deps Deps) *chi.Mux {
 	apiV1.With(authMiddleware.RequireAuth).Patch("/links/{linkId}/status", linkHandler.UpdateStatus)
 	apiV1.With(authMiddleware.RequireAuth).Delete("/links/{linkId}", linkHandler.Delete)
 	apiV1.With(authMiddleware.RequireAuth).Get("/dashboard", analyticsHandler.Dashboard)
+	apiV1.With(authMiddleware.RequireAuth).Get("/links/{linkId}/analytics", analyticsHandler.LinkAnalytics)
+	apiV1.With(authMiddleware.RequireAuth).Get("/links/{linkId}/clicks", analyticsHandler.RecentClicks)
 	r.Mount("/api/v1", apiV1)
 
 	r.Get("/{code}", redirectHandler.RedirectByCode)

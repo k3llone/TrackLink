@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -140,6 +141,146 @@ func (r *GormRepository) ListRecentLinks(ctx context.Context, ownerID string, li
 		Limit(limit).
 		Find(&items).Error; err != nil {
 		return nil, fmt.Errorf("list recent links: %w", err)
+	}
+
+	return items, nil
+}
+
+func (r *GormRepository) GetLinkByIDAndOwner(ctx context.Context, linkID, ownerID string) (links.Link, error) {
+	if r.db == nil {
+		return links.Link{}, fmt.Errorf("get link by id and owner: db is nil")
+	}
+
+	var link links.Link
+	err := r.db.WithContext(ctx).
+		Model(&links.Link{}).
+		Where("id = ? AND owner_id = ? AND status <> ? AND deleted_at IS NULL", linkID, ownerID, links.StatusDeleted).
+		First(&link).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return links.Link{}, ErrLinkNotFound
+		}
+		return links.Link{}, fmt.Errorf("get link by id and owner: %w", err)
+	}
+
+	return link, nil
+}
+
+func (r *GormRepository) CountLinkClicks(ctx context.Context, linkID string, from, to time.Time) (int64, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("count link clicks: db is nil")
+	}
+
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&ClickEvent{}).
+		Where("link_id = ? AND clicked_at >= ? AND clicked_at <= ?", linkID, from.UTC(), to.UTC()).
+		Count(&count).Error
+	if err != nil {
+		return 0, fmt.Errorf("count link clicks: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *GormRepository) CountLinkClicksSince(ctx context.Context, linkID string, since time.Time) (int64, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("count link clicks since: db is nil")
+	}
+
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&ClickEvent{}).
+		Where("link_id = ? AND clicked_at >= ?", linkID, since.UTC()).
+		Count(&count).Error
+	if err != nil {
+		return 0, fmt.Errorf("count link clicks since: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *GormRepository) LastLinkClickedAt(ctx context.Context, linkID string, from, to time.Time) (*time.Time, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("last link clicked at: db is nil")
+	}
+
+	type result struct {
+		Value *time.Time
+	}
+	var row result
+	err := r.db.WithContext(ctx).
+		Model(&ClickEvent{}).
+		Select("MAX(clicked_at) AS value").
+		Where("link_id = ? AND clicked_at >= ? AND clicked_at <= ?", linkID, from.UTC(), to.UTC()).
+		Scan(&row).Error
+	if err != nil {
+		return nil, fmt.Errorf("last link clicked at: %w", err)
+	}
+	if row.Value == nil {
+		return nil, nil
+	}
+
+	value := row.Value.UTC()
+	return &value, nil
+}
+
+func (r *GormRepository) ListLinkClickSeries(ctx context.Context, linkID string, from, to time.Time, groupBy string) ([]TimeSeriesBucket, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("list link click series: db is nil")
+	}
+
+	truncUnit := GroupByDay
+	if groupBy == GroupByHour {
+		truncUnit = GroupByHour
+	}
+
+	type row struct {
+		PeriodStart time.Time
+		Clicks      int64
+	}
+	rows := make([]row, 0)
+	err := r.db.WithContext(ctx).
+		Model(&ClickEvent{}).
+		Select(fmt.Sprintf("date_trunc('%s', clicked_at) AS period_start, COUNT(*) AS clicks", truncUnit)).
+		Where("link_id = ? AND clicked_at >= ? AND clicked_at <= ?", linkID, from.UTC(), to.UTC()).
+		Group("period_start").
+		Order("period_start ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("list link click series: %w", err)
+	}
+
+	buckets := make([]TimeSeriesBucket, 0, len(rows))
+	for _, row := range rows {
+		buckets = append(buckets, TimeSeriesBucket{
+			PeriodStart: row.PeriodStart.UTC(),
+			Clicks:      row.Clicks,
+		})
+	}
+
+	return buckets, nil
+}
+
+func (r *GormRepository) ListRecentClicks(ctx context.Context, linkID string, limit int) ([]ClickEvent, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("list recent clicks: db is nil")
+	}
+
+	if limit <= 0 {
+		limit = defaultRecentClicksLimit
+	} else if limit > maxRecentClicksLimit {
+		limit = maxRecentClicksLimit
+	}
+
+	items := make([]ClickEvent, 0, limit)
+	if err := r.db.WithContext(ctx).
+		Model(&ClickEvent{}).
+		Where("link_id = ?", linkID).
+		Order("clicked_at DESC").
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list recent clicks: %w", err)
 	}
 
 	return items, nil
