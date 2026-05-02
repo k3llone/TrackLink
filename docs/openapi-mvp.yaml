@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: |
     MVP API for TrackLink / LinkCutter.
-    Scope: authentication, link management, redirect, basic analytics, dashboard, minimal admin moderation.
+    Scope: authentication, link management, redirect, basic analytics and dashboard.
 
     Owner-scoped link operations do not use 403 to distinguish "wrong owner" from "unknown link id";
     both cases return 404 (see components/responses/NotFound) to avoid leaking resource existence.
@@ -16,18 +16,34 @@ servers:
     description: Local development
 
 tags:
+  - name: System
+    description: Service infrastructure and health endpoints
   - name: Auth
-    description: Registration, login, logout, password reset and current user session
+    description: Registration, login, logout and current user session
   - name: Links
     description: Customer link management
   - name: Redirect
     description: Public short URL redirect flow
   - name: Analytics
     description: Dashboard and basic click analytics
-  - name: Admin
-    description: Minimal admin moderation for MVP
 
 paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      operationId: getHealth
+      description: Returns service health status for uptime checks and local development verification.
+      responses:
+        '200':
+          description: Service is available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+
   /api/v1/auth/register:
     post:
       tags: [Auth]
@@ -140,6 +156,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LinkListResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -174,54 +192,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
   /api/v1/links/{linkId}:
-    get:
-      tags: [Links]
-      summary: Get link details
-      operationId: getLink
-      security:
-        - sessionCookie: []
-      parameters:
-        - $ref: '#/components/parameters/LinkIdParam'
-      responses:
-        '200':
-          description: Link details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Link'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-    patch:
-      tags: [Links]
-      summary: Update link target URL
-      operationId: updateLink
-      security:
-        - sessionCookie: []
-      parameters:
-        - $ref: '#/components/parameters/LinkIdParam'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateLinkRequest'
-      responses:
-        '200':
-          description: Link updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Link'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
     delete:
       tags: [Links]
       summary: Soft-delete link
@@ -325,6 +295,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LinkAnalyticsResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -353,68 +325,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RecentClicksResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /api/v1/admin/links:
-    get:
-      tags: [Admin]
-      summary: Get links for moderation
-      operationId: adminListLinks
-      security:
-        - sessionCookie: []
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/PageSizeParam'
-        - name: q
-          in: query
-          description: Search by short code, target URL or owner email
-          schema:
-            type: string
-        - name: status
-          in: query
-          schema:
-            $ref: '#/components/schemas/LinkStatus'
-      responses:
-        '200':
-          description: Paginated admin link list
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminLinkListResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /api/v1/admin/links/{linkId}/block:
-    patch:
-      tags: [Admin]
-      summary: Block short link
-      operationId: adminBlockLink
-      security:
-        - sessionCookie: []
-      parameters:
-        - $ref: '#/components/parameters/LinkIdParam'
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminModerationRequest'
-      responses:
-        '200':
-          description: Link blocked
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminLink'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -502,15 +416,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-    Forbidden:
-      description: |
-        Authenticated user is not allowed to perform this operation (e.g. non-admin on admin routes).
-        For owner-scoped link operations, the API uses 404 instead of 403 so clients cannot tell
-        whether a link id exists or belongs to another account.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
     NotFound:
       description: |
         Resource not found or not disclosed. For links scoped to the current user, this status is
@@ -562,6 +467,14 @@ components:
       properties:
         user:
           $ref: '#/components/schemas/User'
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
 
     User:
       type: object
@@ -653,15 +566,6 @@ components:
           pattern: '^[a-zA-Z0-9_-]+$'
           nullable: true
           example: spring-campaign
-
-    UpdateLinkRequest:
-      type: object
-      required: [targetUrl]
-      properties:
-        targetUrl:
-          type: string
-          format: uri
-          example: https://example.com/new-landing
 
     UpdateLinkStatusRequest:
       type: object
@@ -766,38 +670,6 @@ components:
           type: string
           nullable: true
           example: Mozilla/5.0
-
-    AdminLink:
-      allOf:
-        - $ref: '#/components/schemas/Link'
-        - type: object
-          required: [ownerEmail]
-          properties:
-            ownerEmail:
-              type: string
-              format: email
-            blockedReason:
-              type: string
-              nullable: true
-
-    AdminLinkListResponse:
-      type: object
-      required: [items, pagination]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/AdminLink'
-        pagination:
-          $ref: '#/components/schemas/Pagination'
-
-    AdminModerationRequest:
-      type: object
-      properties:
-        reason:
-          type: string
-          maxLength: 500
-          example: Malicious or suspicious target URL
 
     Pagination:
       type: object
