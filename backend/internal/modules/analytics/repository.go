@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"tracklink/internal/modules/links"
+
 	"gorm.io/gorm"
 )
 
@@ -49,4 +51,96 @@ func (r *GormRepository) CreateClickEvent(ctx context.Context, event CreateClick
 	}
 
 	return nil
+}
+
+func (r *GormRepository) CountTotalLinks(ctx context.Context, ownerID string) (int64, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("count total links: db is nil")
+	}
+
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&links.Link{}).
+		Where("owner_id = ? AND status <> ? AND deleted_at IS NULL", ownerID, links.StatusDeleted).
+		Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("count total links: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *GormRepository) CountActiveLinks(ctx context.Context, ownerID string) (int64, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("count active links: db is nil")
+	}
+
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&links.Link{}).
+		Where("owner_id = ? AND status = ? AND deleted_at IS NULL", ownerID, links.StatusActive).
+		Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("count active links: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *GormRepository) SumTotalClicks(ctx context.Context, ownerID string) (int64, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("sum total clicks: db is nil")
+	}
+
+	type result struct {
+		Value int64
+	}
+	var row result
+	if err := r.db.WithContext(ctx).
+		Model(&links.Link{}).
+		Select("COALESCE(SUM(total_clicks), 0) AS value").
+		Where("owner_id = ? AND status <> ? AND deleted_at IS NULL", ownerID, links.StatusDeleted).
+		Scan(&row).Error; err != nil {
+		return 0, fmt.Errorf("sum total clicks: %w", err)
+	}
+
+	return row.Value, nil
+}
+
+func (r *GormRepository) CountClicksSince(ctx context.Context, ownerID string, since time.Time) (int64, error) {
+	if r.db == nil {
+		return 0, fmt.Errorf("count clicks since: db is nil")
+	}
+
+	var count int64
+	err := r.db.WithContext(ctx).
+		Table("click_events").
+		Joins("JOIN links ON links.id = click_events.link_id").
+		Where("links.owner_id = ? AND click_events.clicked_at >= ?", ownerID, since.UTC()).
+		Count(&count).Error
+	if err != nil {
+		return 0, fmt.Errorf("count clicks since: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *GormRepository) ListRecentLinks(ctx context.Context, ownerID string, limit int) ([]links.Link, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("list recent links: db is nil")
+	}
+
+	if limit <= 0 {
+		limit = defaultRecentLinksLimit
+	}
+
+	items := make([]links.Link, 0, limit)
+	if err := r.db.WithContext(ctx).
+		Model(&links.Link{}).
+		Where("owner_id = ? AND status <> ? AND deleted_at IS NULL", ownerID, links.StatusDeleted).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list recent links: %w", err)
+	}
+
+	return items, nil
 }

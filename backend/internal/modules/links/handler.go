@@ -52,7 +52,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, mapLinkToResponse(link, h.publicURL))
+	writeJSON(w, http.StatusCreated, MapLinkToResponse(link, h.publicURL))
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +80,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 
 	items := make([]LinkResponse, 0, len(links))
 	for _, link := range links {
-		items = append(items, mapLinkToResponse(link, h.publicURL))
+		items = append(items, MapLinkToResponse(link, h.publicURL))
 	}
 
 	writeJSON(w, http.StatusOK, LinkListResponse{
@@ -121,7 +121,7 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, mapLinkToResponse(updated, h.publicURL))
+	writeJSON(w, http.StatusOK, MapLinkToResponse(updated, h.publicURL))
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -149,7 +149,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func mapLinkToResponse(link Link, publicURL string) LinkResponse {
+func MapLinkToResponse(link Link, publicURL string) LinkResponse {
 	shortPath := link.Code
 	if link.CustomAlias != nil && strings.TrimSpace(*link.CustomAlias) != "" {
 		shortPath = strings.TrimSpace(*link.CustomAlias)

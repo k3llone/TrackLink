@@ -64,6 +64,8 @@ func NewRouter(deps Deps) *chi.Mux {
 	analyticsRepo := analytics.NewGormRepository(deps.DB)
 	redirectService := redirect.NewService(redirectRepo, analyticsRepo)
 	redirectHandler := redirect.NewHandler(redirectService)
+	analyticsService := analytics.NewService(analyticsRepo, deps.Config.PublicURL)
+	analyticsHandler := analytics.NewHandler(analyticsService)
 	apiV1.Post("/auth/register", accountHandler.Register)
 	apiV1.Post("/auth/login", accountHandler.Login)
 	apiV1.With(authMiddleware.RequireAuth).Post("/auth/logout", accountHandler.Logout)
@@ -72,6 +74,7 @@ func NewRouter(deps Deps) *chi.Mux {
 	apiV1.With(authMiddleware.RequireAuth).Post("/links", linkHandler.Create)
 	apiV1.With(authMiddleware.RequireAuth).Patch("/links/{linkId}/status", linkHandler.UpdateStatus)
 	apiV1.With(authMiddleware.RequireAuth).Delete("/links/{linkId}", linkHandler.Delete)
+	apiV1.With(authMiddleware.RequireAuth).Get("/dashboard", analyticsHandler.Dashboard)
 	r.Mount("/api/v1", apiV1)
 
 	r.Get("/{code}", redirectHandler.RedirectByCode)
