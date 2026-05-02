@@ -6,6 +6,9 @@ info:
     MVP API for TrackLink / LinkCutter.
     Scope: authentication, link management, redirect, basic analytics, dashboard, minimal admin moderation.
 
+    Owner-scoped link operations do not use 403 to distinguish "wrong owner" from "unknown link id";
+    both cases return 404 (see components/responses/NotFound) to avoid leaking resource existence.
+
 servers:
   - url: https://tracklink.example.com
     description: Production example
@@ -188,8 +191,6 @@ paths:
                 $ref: '#/components/schemas/Link'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -218,8 +219,6 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -236,8 +235,6 @@ paths:
           description: Link deleted
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -267,8 +264,6 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -332,8 +327,6 @@ paths:
                 $ref: '#/components/schemas/LinkAnalyticsResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -362,8 +355,6 @@ paths:
                 $ref: '#/components/schemas/RecentClicksResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -512,13 +503,19 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     Forbidden:
-      description: User has no access to this resource
+      description: |
+        Authenticated user is not allowed to perform this operation (e.g. non-admin on admin routes).
+        For owner-scoped link operations, the API uses 404 instead of 403 so clients cannot tell
+        whether a link id exists or belongs to another account.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     NotFound:
-      description: Resource not found
+      description: |
+        Resource not found or not disclosed. For links scoped to the current user, this status is
+        returned when the link id is unknown, the link was deleted from the user-visible view, or
+        the link belongs to another account—same response in all cases to avoid resource enumeration.
       content:
         application/json:
           schema:
