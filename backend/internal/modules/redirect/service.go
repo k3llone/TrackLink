@@ -8,7 +8,10 @@ import (
 )
 
 const (
-	StatusActive = "active"
+	StatusActive   = "active"
+	StatusInactive = "inactive"
+	StatusBlocked  = "blocked"
+	StatusDeleted  = "deleted"
 )
 
 type ResultKind string
@@ -29,6 +32,7 @@ type ResolveResult struct {
 	Kind      ResultKind
 	TargetURL string
 	Status    string
+	Deleted   bool
 }
 
 type Service struct {
@@ -78,7 +82,8 @@ func (s *Service) ResolveAndTrack(ctx context.Context, code string, meta Request
 	}
 
 	return ResolveResult{
-		Kind:   ResultKindUnavailable,
-		Status: link.Status,
+		Kind:    ResultKindUnavailable,
+		Status:  link.Status,
+		Deleted: link.Status == StatusDeleted || link.DeletedAt != nil,
 	}, nil
 }

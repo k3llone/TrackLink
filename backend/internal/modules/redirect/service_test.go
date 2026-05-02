@@ -116,3 +116,46 @@ func TestServiceResolveByCustomAliasAsNotFoundWhenMissing(t *testing.T) {
 		t.Fatalf("expected not found, got %s", result.Kind)
 	}
 }
+
+func TestServiceResolveTracksUnavailableWithoutTouch(t *testing.T) {
+	clicked := false
+	repo := fakeRepository{
+		findByCodeOrAliasFn: func(_ context.Context, code string) (Link, error) {
+			if code != "blocked-link" {
+				t.Fatalf("expected code blocked-link, got %s", code)
+			}
+			return Link{
+				ID:        "link-3",
+				Code:      "blocked-link",
+				TargetURL: "https://example.com/blocked",
+				Status:    StatusBlocked,
+			}, nil
+		},
+		createClickEventFn: func(_ context.Context, event ClickEvent) error {
+			clicked = true
+			if event.LinkID != "link-3" {
+				t.Fatalf("expected link id link-3, got %s", event.LinkID)
+			}
+			return nil
+		},
+		touchActiveLinkFn: func(_ context.Context, _ string, _ time.Time) error {
+			t.Fatal("touch active link must not be called for blocked link")
+			return nil
+		},
+	}
+
+	service := NewService(repo)
+	result, err := service.ResolveAndTrack(context.Background(), "blocked-link", RequestMeta{})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result.Kind != ResultKindUnavailable {
+		t.Fatalf("expected unavailable result, got %s", result.Kind)
+	}
+	if result.Status != StatusBlocked {
+		t.Fatalf("expected blocked status, got %s", result.Status)
+	}
+	if !clicked {
+		t.Fatal("expected click event to be created for unavailable link")
+	}
+}

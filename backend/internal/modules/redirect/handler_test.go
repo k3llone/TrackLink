@@ -33,6 +33,83 @@ func TestHandlerRedirectByCodeReturnsNotFound(t *testing.T) {
 	}
 }
 
+func TestHandlerRedirectByCodeReturnsStatusPagesForUnavailableLink(t *testing.T) {
+	tests := []struct {
+		name         string
+		link         Link
+		wantCode     int
+		wantContains string
+	}{
+		{
+			name: "blocked",
+			link: Link{
+				ID:        "link-b",
+				Code:      "blocked",
+				TargetURL: "https://example.com",
+				Status:    StatusBlocked,
+			},
+			wantCode:     http.StatusForbidden,
+			wantContains: "Link is blocked",
+		},
+		{
+			name: "inactive",
+			link: Link{
+				ID:        "link-i",
+				Code:      "inactive",
+				TargetURL: "https://example.com",
+				Status:    StatusInactive,
+			},
+			wantCode:     http.StatusGone,
+			wantContains: "Link is inactive",
+		},
+		{
+			name: "deleted",
+			link: Link{
+				ID:        "link-d",
+				Code:      "deleted",
+				TargetURL: "https://example.com",
+				Status:    StatusDeleted,
+			},
+			wantCode:     http.StatusGone,
+			wantContains: "Link is deleted",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := fakeRepository{
+				findByCodeOrAliasFn: func(_ context.Context, _ string) (Link, error) {
+					return tt.link, nil
+				},
+				createClickEventFn: func(_ context.Context, _ ClickEvent) error {
+					return nil
+				},
+				touchActiveLinkFn: func(_ context.Context, _ string, _ time.Time) error {
+					t.Fatal("touch active link should not be called for unavailable statuses")
+					return nil
+				},
+			}
+			handler := NewHandler(NewService(repo))
+			router := chi.NewRouter()
+			router.Get("/{code}", handler.RedirectByCode)
+
+			req := httptest.NewRequest(http.MethodGet, "/"+tt.name, nil)
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			if rr.Code != tt.wantCode {
+				t.Fatalf("expected status %d, got %d", tt.wantCode, rr.Code)
+			}
+			if got := rr.Header().Get("Content-Type"); !strings.Contains(got, "text/html") {
+				t.Fatalf("expected html content-type, got %s", got)
+			}
+			if !strings.Contains(rr.Body.String(), tt.wantContains) {
+				t.Fatalf("expected body to contain %q, got %s", tt.wantContains, rr.Body.String())
+			}
+		})
+	}
+}
+
 func TestHandlerRedirectByCodeResolvesActiveLink(t *testing.T) {
 	clicked := false
 	touched := false

@@ -33,7 +33,20 @@ func (h *Handler) RedirectByCode(w http.ResponseWriter, r *http.Request) {
 	case ResultKindRedirect:
 		http.Redirect(w, r, result.TargetURL, http.StatusFound)
 	default:
-		writeHTML(w, http.StatusConflict, "Link unavailable", "The requested link is temporarily unavailable.")
+		handleUnavailable(w, result)
+	}
+}
+
+func handleUnavailable(w http.ResponseWriter, result ResolveResult) {
+	switch {
+	case result.Status == StatusBlocked:
+		writeHTML(w, http.StatusForbidden, "Link is blocked", "This short link has been blocked and cannot be opened.")
+	case result.Status == StatusInactive:
+		writeHTML(w, http.StatusGone, "Link is inactive", "This short link is inactive and no longer available.")
+	case result.Status == StatusDeleted || result.Deleted:
+		writeHTML(w, http.StatusGone, "Link is deleted", "This short link has been deleted and is no longer available.")
+	default:
+		writeHTML(w, http.StatusGone, "Link unavailable", "This short link is unavailable.")
 	}
 }
 
