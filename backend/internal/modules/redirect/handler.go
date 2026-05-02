@@ -1,9 +1,8 @@
 package redirect
 
 import (
-	"errors"
-	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -18,19 +17,24 @@ func NewHandler(service *Service) *Handler {
 
 func (h *Handler) RedirectByCode(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
-	link, err := h.service.Resolve(r.Context(), code)
+	result, err := h.service.ResolveAndTrack(r.Context(), code, RequestMeta{
+		Referrer:  r.Referer(),
+		UserAgent: r.UserAgent(),
+		ClickedAt: time.Now().UTC(),
+	})
 	if err != nil {
-		if errors.Is(err, ErrLinkNotFound) {
-			writeHTML(w, http.StatusNotFound, "Link not found", "The requested short link does not exist.")
-			return
-		}
 		writeHTML(w, http.StatusInternalServerError, "Internal error", "Unable to process redirect request.")
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(fmt.Sprintf("resolved target: %s", link.TargetURL)))
+	switch result.Kind {
+	case ResultKindNotFound:
+		writeHTML(w, http.StatusNotFound, "Link not found", "The requested short link does not exist.")
+	case ResultKindRedirect:
+		http.Redirect(w, r, result.TargetURL, http.StatusFound)
+	default:
+		writeHTML(w, http.StatusConflict, "Link unavailable", "The requested link is temporarily unavailable.")
+	}
 }
 
 func writeHTML(w http.ResponseWriter, status int, title, message string) {
