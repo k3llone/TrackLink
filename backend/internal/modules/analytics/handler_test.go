@@ -206,6 +206,39 @@ func TestHandlerLinkAnalyticsSuccess(t *testing.T) {
 	}
 }
 
+func TestHandlerLinkAnalyticsPeriodFilter(t *testing.T) {
+	from := time.Date(2026, 4, 28, 9, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 5, 2, 10, 30, 0, 0, time.UTC)
+	var capturedFrom time.Time
+	var capturedTo time.Time
+	repo := fakeDashboardRepository{
+		countLinkClicksFn: func(_ context.Context, _ string, fromArg, toArg time.Time) (int64, error) {
+			capturedFrom = fromArg
+			capturedTo = toArg
+			return 1, nil
+		},
+	}
+	handler := NewHandler(NewService(repo, "https://tracklink.example.com"))
+	req := newLinkAnalyticsRequest("/api/v1/links/link-1/analytics?from=2026-04-28T09:00:00Z&to=2026-05-02T10:30:00Z&groupBy=day", "link-1")
+	req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
+		UserID: "owner-1",
+		Role:   "customer",
+	}))
+	rr := httptest.NewRecorder()
+
+	handler.LinkAnalytics(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+	if !capturedFrom.Equal(from) {
+		t.Fatalf("expected from %s, got %s", from, capturedFrom)
+	}
+	if !capturedTo.Equal(to) {
+		t.Fatalf("expected to %s, got %s", to, capturedTo)
+	}
+}
+
 func TestHandlerLinkAnalyticsInvalidGroupBy(t *testing.T) {
 	handler := NewHandler(NewService(fakeDashboardRepository{}, "https://tracklink.example.com"))
 	req := newLinkAnalyticsRequest("/api/v1/links/link-1/analytics?groupBy=week", "link-1")
@@ -219,6 +252,44 @@ func TestHandlerLinkAnalyticsInvalidGroupBy(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	}
+}
+
+func TestHandlerLinkAnalyticsInvalidPeriod(t *testing.T) {
+	tests := []struct {
+		name   string
+		target string
+	}{
+		{
+			name:   "invalid from",
+			target: "/api/v1/links/link-1/analytics?from=not-a-date",
+		},
+		{
+			name:   "invalid to",
+			target: "/api/v1/links/link-1/analytics?to=not-a-date",
+		},
+		{
+			name:   "from after to",
+			target: "/api/v1/links/link-1/analytics?from=2026-05-03T00:00:00Z&to=2026-05-02T00:00:00Z",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewHandler(NewService(fakeDashboardRepository{}, "https://tracklink.example.com"))
+			req := newLinkAnalyticsRequest(tt.target, "link-1")
+			req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
+				UserID: "owner-1",
+				Role:   "customer",
+			}))
+			rr := httptest.NewRecorder()
+
+			handler.LinkAnalytics(rr, req)
+
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+			}
+		})
 	}
 }
 

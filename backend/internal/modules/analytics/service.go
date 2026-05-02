@@ -131,6 +131,9 @@ func (s *Service) LoadLinkAnalytics(ctx context.Context, userID, linkID string, 
 	if from.IsZero() {
 		from = to.Add(-defaultAnalyticsPeriod)
 	}
+	if from.After(to) {
+		fields["from"] = "From must be before or equal to to"
+	}
 
 	if len(fields) > 0 {
 		return LinkAnalyticsResponse{}, fields, ErrValidation

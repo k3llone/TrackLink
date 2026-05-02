@@ -376,3 +376,50 @@ func TestServiceLoadLinkAnalyticsEmptyClicksResponse(t *testing.T) {
 		t.Fatalf("expected empty series, got %+v", resp.Series)
 	}
 }
+
+func TestServiceLoadLinkAnalyticsUsesRequestedPeriod(t *testing.T) {
+	from := time.Date(2026, 4, 28, 9, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 5, 2, 10, 30, 0, 0, time.UTC)
+	var capturedFrom time.Time
+	var capturedTo time.Time
+	repo := fakeDashboardRepository{
+		countLinkClicksFn: func(_ context.Context, _ string, fromArg, toArg time.Time) (int64, error) {
+			capturedFrom = fromArg
+			capturedTo = toArg
+			return 1, nil
+		},
+	}
+	service := NewService(repo, "https://tracklink.example.com")
+
+	_, _, err := service.LoadLinkAnalytics(context.Background(), "owner-1", "link-1", LinkAnalyticsQuery{
+		From:    from,
+		To:      to,
+		GroupBy: GroupByDay,
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if !capturedFrom.Equal(from) {
+		t.Fatalf("expected from %s, got %s", from, capturedFrom)
+	}
+	if !capturedTo.Equal(to) {
+		t.Fatalf("expected to %s, got %s", to, capturedTo)
+	}
+}
+
+func TestServiceLoadLinkAnalyticsRejectsInvalidPeriod(t *testing.T) {
+	from := time.Date(2026, 5, 3, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 5, 2, 0, 0, 0, 0, time.UTC)
+	service := NewService(fakeDashboardRepository{}, "https://tracklink.example.com")
+
+	_, fields, err := service.LoadLinkAnalytics(context.Background(), "owner-1", "link-1", LinkAnalyticsQuery{
+		From: from,
+		To:   to,
+	})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected validation error, got %v", err)
+	}
+	if fields["from"] == "" {
+		t.Fatalf("expected from validation field, got %v", fields)
+	}
+}

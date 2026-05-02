@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"tracklink/internal/shared"
@@ -100,6 +101,30 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 func parseLinkAnalyticsQuery(r *http.Request) (LinkAnalyticsQuery, map[string]string) {
 	q := r.URL.Query()
 	fields := map[string]string{}
+
+	var from time.Time
+	if rawFrom := strings.TrimSpace(q.Get("from")); rawFrom != "" {
+		parsed, err := parseAnalyticsDateTime(rawFrom)
+		if err != nil {
+			fields["from"] = "From must be a valid RFC3339 date-time"
+		} else {
+			from = parsed.UTC()
+		}
+	}
+
+	var to time.Time
+	if rawTo := strings.TrimSpace(q.Get("to")); rawTo != "" {
+		parsed, err := parseAnalyticsDateTime(rawTo)
+		if err != nil {
+			fields["to"] = "To must be a valid RFC3339 date-time"
+		} else {
+			to = parsed.UTC()
+		}
+	}
+	if !from.IsZero() && !to.IsZero() && from.After(to) {
+		fields["from"] = "From must be before or equal to to"
+	}
+
 	groupBy := strings.TrimSpace(q.Get("groupBy"))
 	if groupBy == "" {
 		groupBy = defaultAnalyticsGroupBy
@@ -109,6 +134,17 @@ func parseLinkAnalyticsQuery(r *http.Request) (LinkAnalyticsQuery, map[string]st
 	}
 
 	return LinkAnalyticsQuery{
+		From:    from,
+		To:      to,
 		GroupBy: groupBy,
 	}, fields
+}
+
+func parseAnalyticsDateTime(value string) (time.Time, error) {
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err == nil {
+		return parsed, nil
+	}
+
+	return time.Parse(time.RFC3339, value)
 }
