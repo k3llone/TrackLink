@@ -34,6 +34,10 @@ type Deps struct {
 }
 
 func NewRouter(deps Deps) *chi.Mux {
+	return newRouter(deps, nil)
+}
+
+func newRouter(deps Deps, registerAdminRoutes func(chi.Router)) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(chiMiddleware.Recoverer)
@@ -66,6 +70,12 @@ func NewRouter(deps Deps) *chi.Mux {
 	redirectHandler := redirect.NewHandler(redirectService)
 	analyticsService := analytics.NewService(analyticsRepo, deps.Config.PublicURL)
 	analyticsHandler := analytics.NewHandler(analyticsService)
+	adminV1 := chi.NewRouter()
+	adminV1.Use(authMiddleware.RequireAuth)
+	adminV1.Use(authMiddleware.RequireAdmin)
+	if registerAdminRoutes != nil {
+		registerAdminRoutes(adminV1)
+	}
 	apiV1.Post("/auth/register", accountHandler.Register)
 	apiV1.Post("/auth/login", accountHandler.Login)
 	apiV1.With(authMiddleware.RequireAuth).Post("/auth/logout", accountHandler.Logout)
@@ -77,6 +87,7 @@ func NewRouter(deps Deps) *chi.Mux {
 	apiV1.With(authMiddleware.RequireAuth).Get("/dashboard", analyticsHandler.Dashboard)
 	apiV1.With(authMiddleware.RequireAuth).Get("/links/{linkId}/analytics", analyticsHandler.LinkAnalytics)
 	apiV1.With(authMiddleware.RequireAuth).Get("/links/{linkId}/clicks", analyticsHandler.RecentClicks)
+	apiV1.Mount("/admin", adminV1)
 	r.Mount("/api/v1", apiV1)
 
 	r.Get("/{code}", redirectHandler.RedirectByCode)

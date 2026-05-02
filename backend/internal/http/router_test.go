@@ -7,7 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"tracklink/internal/config"
+	"tracklink/internal/modules/accounts"
 	"tracklink/internal/platform/session"
 )
 
@@ -337,5 +340,69 @@ func TestRecentClicksRouteRequiresAuth(t *testing.T) {
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rr.Code)
+	}
+}
+
+func TestAdminRouteRequiresAdmin(t *testing.T) {
+	tests := []struct {
+		name        string
+		sessionID   string
+		sessionData session.SessionData
+		wantStatus  int
+	}{
+		{
+			name:       "unauthorized without session",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:      "forbidden for customer",
+			sessionID: "session-customer",
+			sessionData: session.SessionData{
+				UserID: "user-1",
+				Role:   accounts.RoleCustomer,
+			},
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:      "allowed for admin",
+			sessionID: "session-admin",
+			sessionData: session.SessionData{
+				UserID: "admin-1",
+				Role:   accounts.RoleAdmin,
+			},
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
+			if tt.sessionID != "" {
+				store.sessions[tt.sessionID] = tt.sessionData
+			}
+
+			router := newRouter(Deps{
+				Sessions: store,
+				Config: config.Config{
+					SessionTTL:          24 * time.Hour,
+					SessionCookieSecure: false,
+				},
+			}, func(r chi.Router) {
+				r.Get("/probe", func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				})
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/probe", nil)
+			if tt.sessionID != "" {
+				req.AddCookie(&http.Cookie{Name: "tracklink_session", Value: tt.sessionID})
+			}
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			if rr.Code != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, rr.Code)
+			}
+		})
 	}
 }
