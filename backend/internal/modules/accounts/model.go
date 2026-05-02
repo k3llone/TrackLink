@@ -4,6 +4,7 @@ import "time"
 
 const (
 	RoleCustomer = "customer"
+	RoleAdmin    = "admin"
 )
 
 type User struct {
