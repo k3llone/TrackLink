@@ -9,6 +9,11 @@ import (
 	"tracklink/internal/modules/links"
 )
 
+const (
+	testAnalyticsLinkID        = "7607f3ca-90d7-4c47-b2f7-f968ad1f5f9a"
+	testAnalyticsMissingLinkID = "1a15af7a-f9be-44e3-997e-c5d15f4ac32a"
+)
+
 type fakeDashboardRepository struct {
 	countTotalLinksFn      func(ctx context.Context, ownerID string) (int64, error)
 	countActiveLinksFn     func(ctx context.Context, ownerID string) (int64, error)
@@ -237,25 +242,25 @@ func TestServiceLoadLinkAnalyticsReturnsDefaultPeriodAndSeries(t *testing.T) {
 	var capturedGroupBy string
 	repo := fakeDashboardRepository{
 		getLinkByIDAndOwnerFn: func(_ context.Context, linkID, ownerID string) (links.Link, error) {
-			if linkID != "link-1" {
-				t.Fatalf("expected link-1, got %s", linkID)
+			if linkID != testAnalyticsLinkID {
+				t.Fatalf("expected %s, got %s", testAnalyticsLinkID, linkID)
 			}
 			if ownerID != "owner-1" {
 				t.Fatalf("expected owner-1, got %s", ownerID)
 			}
-			return links.Link{ID: "link-1", OwnerID: "owner-1"}, nil
+			return links.Link{ID: testAnalyticsLinkID, OwnerID: "owner-1"}, nil
 		},
 		countLinkClicksFn: func(_ context.Context, linkID string, from, to time.Time) (int64, error) {
-			if linkID != "link-1" {
-				t.Fatalf("expected link-1, got %s", linkID)
+			if linkID != testAnalyticsLinkID {
+				t.Fatalf("expected %s, got %s", testAnalyticsLinkID, linkID)
 			}
 			capturedFrom = from
 			capturedTo = to
 			return 8, nil
 		},
 		countLinkClicksSinceFn: func(_ context.Context, linkID string, since time.Time) (int64, error) {
-			if linkID != "link-1" {
-				t.Fatalf("expected link-1, got %s", linkID)
+			if linkID != testAnalyticsLinkID {
+				t.Fatalf("expected %s, got %s", testAnalyticsLinkID, linkID)
 			}
 			expected := now.Add(-24 * time.Hour)
 			if !since.Equal(expected) {
@@ -267,8 +272,8 @@ func TestServiceLoadLinkAnalyticsReturnsDefaultPeriodAndSeries(t *testing.T) {
 			return &lastClickedAt, nil
 		},
 		listLinkClickSeriesFn: func(_ context.Context, linkID string, from, to time.Time, groupBy string) ([]TimeSeriesBucket, error) {
-			if linkID != "link-1" {
-				t.Fatalf("expected link-1, got %s", linkID)
+			if linkID != testAnalyticsLinkID {
+				t.Fatalf("expected %s, got %s", testAnalyticsLinkID, linkID)
 			}
 			if !from.Equal(capturedFrom) || !to.Equal(capturedTo) {
 				t.Fatal("expected series period to match click count period")
@@ -282,7 +287,7 @@ func TestServiceLoadLinkAnalyticsReturnsDefaultPeriodAndSeries(t *testing.T) {
 	service := NewService(repo, "https://tracklink.example.com")
 	service.now = func() time.Time { return now }
 
-	resp, fields, err := service.LoadLinkAnalytics(context.Background(), "owner-1", "link-1", LinkAnalyticsQuery{
+	resp, fields, err := service.LoadLinkAnalytics(context.Background(), "owner-1", testAnalyticsLinkID, LinkAnalyticsQuery{
 		GroupBy: GroupByHour,
 	})
 	if err != nil {
@@ -300,8 +305,8 @@ func TestServiceLoadLinkAnalyticsReturnsDefaultPeriodAndSeries(t *testing.T) {
 	if capturedGroupBy != GroupByHour {
 		t.Fatalf("expected group by hour, got %s", capturedGroupBy)
 	}
-	if resp.LinkID != "link-1" {
-		t.Fatalf("expected link ID link-1, got %s", resp.LinkID)
+	if resp.LinkID != testAnalyticsLinkID {
+		t.Fatalf("expected link ID %s, got %s", testAnalyticsLinkID, resp.LinkID)
 	}
 	if resp.TotalClicks != 8 {
 		t.Fatalf("expected total clicks 8, got %d", resp.TotalClicks)
@@ -330,7 +335,7 @@ func TestServiceLoadLinkAnalyticsDefaultsGroupByDay(t *testing.T) {
 	}
 	service := NewService(repo, "https://tracklink.example.com")
 
-	_, _, err := service.LoadLinkAnalytics(context.Background(), "owner-1", "link-1", LinkAnalyticsQuery{})
+	_, _, err := service.LoadLinkAnalytics(context.Background(), "owner-1", testAnalyticsLinkID, LinkAnalyticsQuery{})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -347,9 +352,27 @@ func TestServiceLoadLinkAnalyticsReturnsNotFoundForForeignLink(t *testing.T) {
 	}
 	service := NewService(repo, "https://tracklink.example.com")
 
-	_, _, err := service.LoadLinkAnalytics(context.Background(), "owner-1", "link-1", LinkAnalyticsQuery{})
+	_, _, err := service.LoadLinkAnalytics(context.Background(), "owner-1", testAnalyticsMissingLinkID, LinkAnalyticsQuery{})
 	if !errors.Is(err, ErrLinkNotFound) {
 		t.Fatalf("expected ErrLinkNotFound, got %v", err)
+	}
+}
+
+func TestServiceLoadLinkAnalyticsRejectsInvalidLinkIDBeforeRepository(t *testing.T) {
+	repo := fakeDashboardRepository{
+		getLinkByIDAndOwnerFn: func(_ context.Context, _, _ string) (links.Link, error) {
+			t.Fatal("repo must not be called on validation errors")
+			return links.Link{}, nil
+		},
+	}
+	service := NewService(repo, "https://tracklink.example.com")
+
+	_, fields, err := service.LoadLinkAnalytics(context.Background(), "owner-1", "not-a-uuid", LinkAnalyticsQuery{})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+	if _, ok := fields["linkId"]; !ok {
+		t.Fatalf("expected linkId validation error, got %v", fields)
 	}
 }
 
@@ -370,7 +393,7 @@ func TestServiceLoadLinkAnalyticsEmptyClicksResponse(t *testing.T) {
 	}
 	service := NewService(repo, "https://tracklink.example.com")
 
-	resp, _, err := service.LoadLinkAnalytics(context.Background(), "owner-1", "link-1", LinkAnalyticsQuery{})
+	resp, _, err := service.LoadLinkAnalytics(context.Background(), "owner-1", testAnalyticsLinkID, LinkAnalyticsQuery{})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -399,7 +422,7 @@ func TestServiceLoadLinkAnalyticsUsesRequestedPeriod(t *testing.T) {
 	}
 	service := NewService(repo, "https://tracklink.example.com")
 
-	_, _, err := service.LoadLinkAnalytics(context.Background(), "owner-1", "link-1", LinkAnalyticsQuery{
+	_, _, err := service.LoadLinkAnalytics(context.Background(), "owner-1", testAnalyticsLinkID, LinkAnalyticsQuery{
 		From:    from,
 		To:      to,
 		GroupBy: GroupByDay,
@@ -420,7 +443,7 @@ func TestServiceLoadLinkAnalyticsRejectsInvalidPeriod(t *testing.T) {
 	to := time.Date(2026, 5, 2, 0, 0, 0, 0, time.UTC)
 	service := NewService(fakeDashboardRepository{}, "https://tracklink.example.com")
 
-	_, fields, err := service.LoadLinkAnalytics(context.Background(), "owner-1", "link-1", LinkAnalyticsQuery{
+	_, fields, err := service.LoadLinkAnalytics(context.Background(), "owner-1", testAnalyticsLinkID, LinkAnalyticsQuery{
 		From: from,
 		To:   to,
 	})
@@ -439,23 +462,23 @@ func TestServiceLoadRecentClicksReturnsItemsAndDefaultLimit(t *testing.T) {
 	var capturedLimit int
 	repo := fakeDashboardRepository{
 		getLinkByIDAndOwnerFn: func(_ context.Context, linkID, ownerID string) (links.Link, error) {
-			if linkID != "link-1" {
-				t.Fatalf("expected link-1, got %s", linkID)
+			if linkID != testAnalyticsLinkID {
+				t.Fatalf("expected %s, got %s", testAnalyticsLinkID, linkID)
 			}
 			if ownerID != "owner-1" {
 				t.Fatalf("expected owner-1, got %s", ownerID)
 			}
-			return links.Link{ID: "link-1", OwnerID: "owner-1"}, nil
+			return links.Link{ID: testAnalyticsLinkID, OwnerID: "owner-1"}, nil
 		},
 		listRecentClicksFn: func(_ context.Context, linkID string, limit int) ([]ClickEvent, error) {
-			if linkID != "link-1" {
-				t.Fatalf("expected link-1, got %s", linkID)
+			if linkID != testAnalyticsLinkID {
+				t.Fatalf("expected %s, got %s", testAnalyticsLinkID, linkID)
 			}
 			capturedLimit = limit
 			return []ClickEvent{
 				{
 					ID:        "click-1",
-					LinkID:    "link-1",
+					LinkID:    testAnalyticsLinkID,
 					ClickedAt: clickedAt,
 					Referrer:  &referrer,
 					UserAgent: &userAgent,
@@ -465,7 +488,7 @@ func TestServiceLoadRecentClicksReturnsItemsAndDefaultLimit(t *testing.T) {
 	}
 	service := NewService(repo, "https://tracklink.example.com")
 
-	resp, fields, err := service.LoadRecentClicks(context.Background(), "owner-1", " link-1 ", RecentClicksQuery{})
+	resp, fields, err := service.LoadRecentClicks(context.Background(), "owner-1", " "+testAnalyticsLinkID+" ", RecentClicksQuery{})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -479,7 +502,7 @@ func TestServiceLoadRecentClicksReturnsItemsAndDefaultLimit(t *testing.T) {
 		t.Fatalf("expected one click, got %d", len(resp.Items))
 	}
 	item := resp.Items[0]
-	if item.ID != "click-1" || item.LinkID != "link-1" {
+	if item.ID != "click-1" || item.LinkID != testAnalyticsLinkID {
 		t.Fatalf("unexpected item identity: %+v", item)
 	}
 	if item.ClickedAt != clickedAt.Format(time.RFC3339) {
@@ -493,22 +516,25 @@ func TestServiceLoadRecentClicksReturnsItemsAndDefaultLimit(t *testing.T) {
 	}
 }
 
-func TestServiceLoadRecentClicksCapsLimit(t *testing.T) {
-	var capturedLimit int
+func TestServiceLoadRecentClicksRejectsLimitAboveMax(t *testing.T) {
 	repo := fakeDashboardRepository{
-		listRecentClicksFn: func(_ context.Context, _ string, limit int) ([]ClickEvent, error) {
-			capturedLimit = limit
+		getLinkByIDAndOwnerFn: func(_ context.Context, _, _ string) (links.Link, error) {
+			t.Fatal("repo must not be called on validation errors")
+			return links.Link{}, nil
+		},
+		listRecentClicksFn: func(_ context.Context, _ string, _ int) ([]ClickEvent, error) {
+			t.Fatal("repo must not be called on validation errors")
 			return nil, nil
 		},
 	}
 	service := NewService(repo, "https://tracklink.example.com")
 
-	_, _, err := service.LoadRecentClicks(context.Background(), "owner-1", "link-1", RecentClicksQuery{Limit: 150, limitProvided: true})
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
+	_, fields, err := service.LoadRecentClicks(context.Background(), "owner-1", testAnalyticsLinkID, RecentClicksQuery{Limit: 150, limitProvided: true})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
 	}
-	if capturedLimit != maxRecentClicksLimit {
-		t.Fatalf("expected capped limit %d, got %d", maxRecentClicksLimit, capturedLimit)
+	if fields["limit"] == "" {
+		t.Fatalf("expected limit validation field, got %v", fields)
 	}
 }
 
@@ -531,7 +557,7 @@ func TestServiceLoadRecentClicksRejectsInvalidLimit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			service := NewService(fakeDashboardRepository{}, "https://tracklink.example.com")
 
-			_, fields, err := service.LoadRecentClicks(context.Background(), "owner-1", "link-1", tt.query)
+			_, fields, err := service.LoadRecentClicks(context.Background(), "owner-1", testAnalyticsLinkID, tt.query)
 			if !errors.Is(err, ErrValidation) {
 				t.Fatalf("expected validation error, got %v", err)
 			}
@@ -550,8 +576,26 @@ func TestServiceLoadRecentClicksReturnsNotFoundForForeignLink(t *testing.T) {
 	}
 	service := NewService(repo, "https://tracklink.example.com")
 
-	_, _, err := service.LoadRecentClicks(context.Background(), "owner-1", "foreign-link", RecentClicksQuery{})
+	_, _, err := service.LoadRecentClicks(context.Background(), "owner-1", testAnalyticsMissingLinkID, RecentClicksQuery{})
 	if !errors.Is(err, ErrLinkNotFound) {
 		t.Fatalf("expected ErrLinkNotFound, got %v", err)
+	}
+}
+
+func TestServiceLoadRecentClicksRejectsInvalidLinkIDBeforeRepository(t *testing.T) {
+	repo := fakeDashboardRepository{
+		getLinkByIDAndOwnerFn: func(_ context.Context, _, _ string) (links.Link, error) {
+			t.Fatal("repo must not be called on validation errors")
+			return links.Link{}, nil
+		},
+	}
+	service := NewService(repo, "https://tracklink.example.com")
+
+	_, fields, err := service.LoadRecentClicks(context.Background(), "owner-1", "not-a-uuid", RecentClicksQuery{})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+	if _, ok := fields["linkId"]; !ok {
+		t.Fatalf("expected linkId validation error, got %v", fields)
 	}
 }

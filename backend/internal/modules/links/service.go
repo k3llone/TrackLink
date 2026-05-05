@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"tracklink/internal/shared"
 )
 
 var ErrValidation = errors.New("validation failed")
@@ -19,13 +21,13 @@ var ErrLinkNotFound = errors.New("link not found")
 var ErrStatusChangeNotAllowed = errors.New("status change not allowed")
 
 const (
-	codeLength             = 6
-	maxCodeGenAttempts     = 10
-	minCustomAliasLen      = 3
-	maxCustomAliasLen      = 64
-	defaultListPage        = 1
-	defaultListPageSize    = 20
-	maxListPageSize        = 100
+	codeLength          = 6
+	maxCodeGenAttempts  = 10
+	minCustomAliasLen   = 3
+	maxCustomAliasLen   = 64
+	defaultListPage     = 1
+	defaultListPageSize = 20
+	maxListPageSize     = 100
 )
 
 var customAliasPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -41,8 +43,8 @@ var allowedUserUpdateStatuses = map[string]struct{}{
 }
 
 type Service struct {
-	repo      Repository
-	generate  func(length int) (string, error)
+	repo     Repository
+	generate func(length int) (string, error)
 }
 
 func NewService(repo Repository) *Service {
@@ -131,7 +133,7 @@ func (s *Service) List(ctx context.Context, ownerID string, query ListLinksQuery
 	if pageSize < 1 {
 		fields["pageSize"] = "Page size must be greater than or equal to 1"
 	} else if pageSize > maxListPageSize {
-		pageSize = maxListPageSize
+		fields["pageSize"] = "Page size must be less than or equal to 100"
 	}
 
 	status := strings.TrimSpace(query.Status)
@@ -177,8 +179,11 @@ func (s *Service) UpdateStatus(ctx context.Context, ownerID, linkID string, req 
 	if strings.TrimSpace(ownerID) == "" {
 		fields["ownerId"] = "Owner ID is required"
 	}
-	if strings.TrimSpace(linkID) == "" {
+	normalizedLinkID := strings.TrimSpace(linkID)
+	if normalizedLinkID == "" {
 		fields["linkId"] = "Link ID is required"
+	} else if !shared.IsUUID(normalizedLinkID) {
+		fields["linkId"] = "Link ID must be a valid UUID"
 	}
 
 	status := strings.TrimSpace(req.Status)
@@ -192,7 +197,7 @@ func (s *Service) UpdateStatus(ctx context.Context, ownerID, linkID string, req 
 		return Link{}, fields, ErrValidation
 	}
 
-	link, err := s.repo.GetByIDAndOwner(ctx, linkID, ownerID)
+	link, err := s.repo.GetByIDAndOwner(ctx, normalizedLinkID, ownerID)
 	if err != nil {
 		if errors.Is(err, ErrLinkNotFound) {
 			return Link{}, nil, ErrLinkNotFound
@@ -204,7 +209,7 @@ func (s *Service) UpdateStatus(ctx context.Context, ownerID, linkID string, req 
 		return Link{}, nil, ErrStatusChangeNotAllowed
 	}
 
-	updated, err := s.repo.UpdateStatus(ctx, linkID, ownerID, status)
+	updated, err := s.repo.UpdateStatus(ctx, normalizedLinkID, ownerID, status)
 	if err != nil {
 		if errors.Is(err, ErrLinkNotFound) {
 			return Link{}, nil, ErrLinkNotFound
@@ -221,14 +226,17 @@ func (s *Service) Delete(ctx context.Context, ownerID, linkID string) (map[strin
 	if strings.TrimSpace(ownerID) == "" {
 		fields["ownerId"] = "Owner ID is required"
 	}
-	if strings.TrimSpace(linkID) == "" {
+	normalizedLinkID := strings.TrimSpace(linkID)
+	if normalizedLinkID == "" {
 		fields["linkId"] = "Link ID is required"
+	} else if !shared.IsUUID(normalizedLinkID) {
+		fields["linkId"] = "Link ID must be a valid UUID"
 	}
 	if len(fields) > 0 {
 		return fields, ErrValidation
 	}
 
-	link, err := s.repo.GetByIDAndOwner(ctx, linkID, ownerID)
+	link, err := s.repo.GetByIDAndOwner(ctx, normalizedLinkID, ownerID)
 	if err != nil {
 		if errors.Is(err, ErrLinkNotFound) {
 			return nil, ErrLinkNotFound
@@ -240,7 +248,7 @@ func (s *Service) Delete(ctx context.Context, ownerID, linkID string) (map[strin
 		return nil, nil
 	}
 
-	if err := s.repo.SoftDelete(ctx, linkID, ownerID); err != nil {
+	if err := s.repo.SoftDelete(ctx, normalizedLinkID, ownerID); err != nil {
 		if errors.Is(err, ErrLinkNotFound) {
 			return nil, ErrLinkNotFound
 		}

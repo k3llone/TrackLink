@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+const (
+	testLinkID        = "7607f3ca-90d7-4c47-b2f7-f968ad1f5f9a"
+	testMissingLinkID = "1a15af7a-f9be-44e3-997e-c5d15f4ac32a"
+)
+
 type fakeRepository struct {
 	createFn              func(ctx context.Context, link *Link) error
 	existsByCodeFn        func(ctx context.Context, code string) (bool, error)
@@ -267,9 +272,9 @@ func TestServiceCreateReturnsConflictWhenCustomAliasExists(t *testing.T) {
 
 func TestServiceCreateCustomAliasValidation(t *testing.T) {
 	testCases := []struct {
-		name       string
+		name        string
 		customAlias *string
-		wantError  bool
+		wantError   bool
 	}{
 		{name: "too short", customAlias: strPtr("ab"), wantError: true},
 		{name: "too long", customAlias: strPtr("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), wantError: true},
@@ -336,11 +341,11 @@ func TestServiceListSuccess(t *testing.T) {
 			}
 			return []Link{
 				{
-					ID:         "link-1",
-					OwnerID:    "owner-1",
-					Code:       "abc123",
-					TargetURL:  "https://example.com",
-					Status:     StatusActive,
+					ID:          "link-1",
+					OwnerID:     "owner-1",
+					Code:        "abc123",
+					TargetURL:   "https://example.com",
+					Status:      StatusActive,
 					TotalClicks: 10,
 				},
 			}, 1, nil
@@ -430,10 +435,31 @@ func TestServiceListValidation(t *testing.T) {
 	}
 }
 
+func TestServiceListRejectsPageSizeAboveMax(t *testing.T) {
+	repo := fakeRepository{
+		listByOwnerFn: func(_ context.Context, _ ListLinksFilter) ([]Link, int64, error) {
+			t.Fatal("repo must not be called on validation errors")
+			return nil, 0, nil
+		},
+	}
+	service := NewService(repo)
+
+	_, _, fields, err := service.List(context.Background(), "owner-1", ListLinksQuery{
+		Page:     1,
+		PageSize: maxListPageSize + 1,
+	})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+	if _, ok := fields["pageSize"]; !ok {
+		t.Fatalf("expected pageSize validation error, got %v", fields)
+	}
+}
+
 func TestServiceUpdateStatusSuccess(t *testing.T) {
 	repo := fakeRepository{
 		getByIDAndOwnerFn: func(_ context.Context, linkID, ownerID string) (Link, error) {
-			if linkID != "link-1" || ownerID != "owner-1" {
+			if linkID != testLinkID || ownerID != "owner-1" {
 				t.Fatalf("unexpected lookup args: linkID=%s ownerID=%s", linkID, ownerID)
 			}
 			return Link{ID: linkID, OwnerID: ownerID, Status: StatusActive}, nil
@@ -443,18 +469,18 @@ func TestServiceUpdateStatusSuccess(t *testing.T) {
 				t.Fatalf("expected status inactive, got %s", status)
 			}
 			return Link{
-				ID:         linkID,
-				OwnerID:    ownerID,
-				Code:       "abc123",
-				TargetURL:  "https://example.com",
-				Status:     status,
+				ID:          linkID,
+				OwnerID:     ownerID,
+				Code:        "abc123",
+				TargetURL:   "https://example.com",
+				Status:      status,
 				TotalClicks: 10,
 			}, nil
 		},
 	}
 
 	service := NewService(repo)
-	link, fields, err := service.UpdateStatus(context.Background(), "owner-1", "link-1", UpdateLinkStatusRequest{
+	link, fields, err := service.UpdateStatus(context.Background(), "owner-1", testLinkID, UpdateLinkStatusRequest{
 		Status: StatusInactive,
 	})
 	if err != nil {
@@ -488,6 +514,26 @@ func TestServiceUpdateStatusValidation(t *testing.T) {
 	}
 }
 
+func TestServiceUpdateStatusRejectsInvalidLinkIDBeforeRepository(t *testing.T) {
+	repo := fakeRepository{
+		getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
+			t.Fatal("repo must not be called on validation errors")
+			return Link{}, nil
+		},
+	}
+	service := NewService(repo)
+
+	_, fields, err := service.UpdateStatus(context.Background(), "owner-1", "not-a-uuid", UpdateLinkStatusRequest{
+		Status: StatusInactive,
+	})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+	if _, ok := fields["linkId"]; !ok {
+		t.Fatalf("expected linkId validation error, got %v", fields)
+	}
+}
+
 func TestServiceUpdateStatusLinkNotFound(t *testing.T) {
 	repo := fakeRepository{
 		getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
@@ -496,7 +542,7 @@ func TestServiceUpdateStatusLinkNotFound(t *testing.T) {
 	}
 	service := NewService(repo)
 
-	_, _, err := service.UpdateStatus(context.Background(), "owner-1", "link-1", UpdateLinkStatusRequest{
+	_, _, err := service.UpdateStatus(context.Background(), "owner-1", testLinkID, UpdateLinkStatusRequest{
 		Status: StatusInactive,
 	})
 	if !errors.Is(err, ErrLinkNotFound) {
@@ -511,7 +557,7 @@ func TestServiceUpdateStatusForbiddenForDeletedOrBlocked(t *testing.T) {
 		t.Run(st, func(t *testing.T) {
 			repo := fakeRepository{
 				getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
-					return Link{ID: "link-1", OwnerID: "owner-1", Status: st}, nil
+					return Link{ID: testLinkID, OwnerID: "owner-1", Status: st}, nil
 				},
 				updateStatusFn: func(_ context.Context, _, _, _ string) (Link, error) {
 					t.Fatal("updateStatus should not be called for blocked/deleted links")
@@ -520,7 +566,7 @@ func TestServiceUpdateStatusForbiddenForDeletedOrBlocked(t *testing.T) {
 			}
 			service := NewService(repo)
 
-			_, _, err := service.UpdateStatus(context.Background(), "owner-1", "link-1", UpdateLinkStatusRequest{
+			_, _, err := service.UpdateStatus(context.Background(), "owner-1", testLinkID, UpdateLinkStatusRequest{
 				Status: StatusActive,
 			})
 			if !errors.Is(err, ErrStatusChangeNotAllowed) {
@@ -538,7 +584,7 @@ func TestServiceDeleteSuccess(t *testing.T) {
 		},
 		softDeleteFn: func(_ context.Context, linkID, ownerID string) error {
 			softDeleted = true
-			if linkID != "link-1" || ownerID != "owner-1" {
+			if linkID != testLinkID || ownerID != "owner-1" {
 				t.Fatalf("unexpected delete args: %s %s", linkID, ownerID)
 			}
 			return nil
@@ -546,7 +592,7 @@ func TestServiceDeleteSuccess(t *testing.T) {
 	}
 	service := NewService(repo)
 
-	fields, err := service.Delete(context.Background(), "owner-1", "link-1")
+	fields, err := service.Delete(context.Background(), "owner-1", testLinkID)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -573,6 +619,24 @@ func TestServiceDeleteValidation(t *testing.T) {
 	}
 }
 
+func TestServiceDeleteRejectsInvalidLinkIDBeforeRepository(t *testing.T) {
+	repo := fakeRepository{
+		getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
+			t.Fatal("repo must not be called on validation errors")
+			return Link{}, nil
+		},
+	}
+	service := NewService(repo)
+
+	fields, err := service.Delete(context.Background(), "owner-1", "not-a-uuid")
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+	if _, ok := fields["linkId"]; !ok {
+		t.Fatalf("expected linkId validation error, got %v", fields)
+	}
+}
+
 func TestServiceDeleteNotFound(t *testing.T) {
 	repo := fakeRepository{
 		getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
@@ -581,7 +645,7 @@ func TestServiceDeleteNotFound(t *testing.T) {
 	}
 	service := NewService(repo)
 
-	_, err := service.Delete(context.Background(), "owner-1", "missing")
+	_, err := service.Delete(context.Background(), "owner-1", testMissingLinkID)
 	if !errors.Is(err, ErrLinkNotFound) {
 		t.Fatalf("expected ErrLinkNotFound, got %v", err)
 	}
@@ -593,7 +657,7 @@ func TestServiceDeleteAlreadyDeletedIsIdempotent(t *testing.T) {
 	repo := fakeRepository{
 		getByIDAndOwnerFn: func(_ context.Context, _, _ string) (Link, error) {
 			return Link{
-				ID:        "link-1",
+				ID:        testLinkID,
 				OwnerID:   "owner-1",
 				Status:    StatusDeleted,
 				DeletedAt: now,
@@ -606,7 +670,7 @@ func TestServiceDeleteAlreadyDeletedIsIdempotent(t *testing.T) {
 	}
 	service := NewService(repo)
 
-	fields, err := service.Delete(context.Background(), "owner-1", "link-1")
+	fields, err := service.Delete(context.Background(), "owner-1", testLinkID)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}

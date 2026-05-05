@@ -129,7 +129,7 @@ func TestHandlerDashboardInternalError(t *testing.T) {
 
 func TestHandlerLinkAnalyticsUnauthorized(t *testing.T) {
 	handler := NewHandler(NewService(fakeDashboardRepository{}, "https://tracklink.example.com"))
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/links/link-1/analytics", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/links/"+testAnalyticsLinkID+"/analytics", nil)
 	rr := httptest.NewRecorder()
 
 	handler.LinkAnalytics(rr, req)
@@ -143,13 +143,13 @@ func TestHandlerLinkAnalyticsSuccess(t *testing.T) {
 	now := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
 	repo := fakeDashboardRepository{
 		getLinkByIDAndOwnerFn: func(_ context.Context, linkID, ownerID string) (links.Link, error) {
-			if linkID != "link-1" {
-				t.Fatalf("expected link-1, got %s", linkID)
+			if linkID != testAnalyticsLinkID {
+				t.Fatalf("expected %s, got %s", testAnalyticsLinkID, linkID)
 			}
 			if ownerID != "owner-1" {
 				t.Fatalf("expected owner-1, got %s", ownerID)
 			}
-			return links.Link{ID: "link-1", OwnerID: "owner-1"}, nil
+			return links.Link{ID: testAnalyticsLinkID, OwnerID: "owner-1"}, nil
 		},
 		countLinkClicksFn: func(_ context.Context, _ string, _, _ time.Time) (int64, error) {
 			return 4, nil
@@ -172,7 +172,7 @@ func TestHandlerLinkAnalyticsSuccess(t *testing.T) {
 	service := NewService(repo, "https://tracklink.example.com")
 	service.now = func() time.Time { return now }
 	handler := NewHandler(service)
-	req := newLinkAnalyticsRequest("/api/v1/links/link-1/analytics?groupBy=hour", "link-1")
+	req := newLinkAnalyticsRequest("/api/v1/links/"+testAnalyticsLinkID+"/analytics?groupBy=hour", testAnalyticsLinkID)
 	req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
 		UserID: "owner-1",
 		Role:   "customer",
@@ -189,8 +189,8 @@ func TestHandlerLinkAnalyticsSuccess(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if resp.LinkID != "link-1" {
-		t.Fatalf("expected link-1, got %s", resp.LinkID)
+	if resp.LinkID != testAnalyticsLinkID {
+		t.Fatalf("expected %s, got %s", testAnalyticsLinkID, resp.LinkID)
 	}
 	if resp.TotalClicks != 4 {
 		t.Fatalf("expected total clicks 4, got %d", resp.TotalClicks)
@@ -219,7 +219,7 @@ func TestHandlerLinkAnalyticsPeriodFilter(t *testing.T) {
 		},
 	}
 	handler := NewHandler(NewService(repo, "https://tracklink.example.com"))
-	req := newLinkAnalyticsRequest("/api/v1/links/link-1/analytics?from=2026-04-28T09:00:00Z&to=2026-05-02T10:30:00Z&groupBy=day", "link-1")
+	req := newLinkAnalyticsRequest("/api/v1/links/"+testAnalyticsLinkID+"/analytics?from=2026-04-28T09:00:00Z&to=2026-05-02T10:30:00Z&groupBy=day", testAnalyticsLinkID)
 	req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
 		UserID: "owner-1",
 		Role:   "customer",
@@ -241,7 +241,7 @@ func TestHandlerLinkAnalyticsPeriodFilter(t *testing.T) {
 
 func TestHandlerLinkAnalyticsInvalidGroupBy(t *testing.T) {
 	handler := NewHandler(NewService(fakeDashboardRepository{}, "https://tracklink.example.com"))
-	req := newLinkAnalyticsRequest("/api/v1/links/link-1/analytics?groupBy=week", "link-1")
+	req := newLinkAnalyticsRequest("/api/v1/links/"+testAnalyticsLinkID+"/analytics?groupBy=week", testAnalyticsLinkID)
 	req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
 		UserID: "owner-1",
 		Role:   "customer",
@@ -262,22 +262,22 @@ func TestHandlerLinkAnalyticsInvalidPeriod(t *testing.T) {
 	}{
 		{
 			name:   "invalid from",
-			target: "/api/v1/links/link-1/analytics?from=not-a-date",
+			target: "/api/v1/links/" + testAnalyticsLinkID + "/analytics?from=not-a-date",
 		},
 		{
 			name:   "invalid to",
-			target: "/api/v1/links/link-1/analytics?to=not-a-date",
+			target: "/api/v1/links/" + testAnalyticsLinkID + "/analytics?to=not-a-date",
 		},
 		{
 			name:   "from after to",
-			target: "/api/v1/links/link-1/analytics?from=2026-05-03T00:00:00Z&to=2026-05-02T00:00:00Z",
+			target: "/api/v1/links/" + testAnalyticsLinkID + "/analytics?from=2026-05-03T00:00:00Z&to=2026-05-02T00:00:00Z",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := NewHandler(NewService(fakeDashboardRepository{}, "https://tracklink.example.com"))
-			req := newLinkAnalyticsRequest(tt.target, "link-1")
+			req := newLinkAnalyticsRequest(tt.target, testAnalyticsLinkID)
 			req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
 				UserID: "owner-1",
 				Role:   "customer",
@@ -300,7 +300,7 @@ func TestHandlerLinkAnalyticsNotFound(t *testing.T) {
 		},
 	}
 	handler := NewHandler(NewService(repo, "https://tracklink.example.com"))
-	req := newLinkAnalyticsRequest("/api/v1/links/missing/analytics", "missing")
+	req := newLinkAnalyticsRequest("/api/v1/links/"+testAnalyticsMissingLinkID+"/analytics", testAnalyticsMissingLinkID)
 	req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
 		UserID: "owner-1",
 		Role:   "customer",
@@ -314,9 +314,33 @@ func TestHandlerLinkAnalyticsNotFound(t *testing.T) {
 	}
 }
 
+func TestHandlerLinkAnalyticsInvalidLinkID(t *testing.T) {
+	handler := NewHandler(NewService(fakeDashboardRepository{}, "https://tracklink.example.com"))
+	req := newLinkAnalyticsRequest("/api/v1/links/not-a-uuid/analytics", "not-a-uuid")
+	req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
+		UserID: "owner-1",
+		Role:   "customer",
+	}))
+	rr := httptest.NewRecorder()
+
+	handler.LinkAnalytics(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	}
+
+	var resp errorResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if _, ok := resp.Error.Fields["linkId"]; !ok {
+		t.Fatalf("expected linkId field error, got %v", resp.Error.Fields)
+	}
+}
+
 func TestHandlerRecentClicksUnauthorized(t *testing.T) {
 	handler := NewHandler(NewService(fakeDashboardRepository{}, "https://tracklink.example.com"))
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/links/link-1/clicks", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/links/"+testAnalyticsLinkID+"/clicks", nil)
 	rr := httptest.NewRecorder()
 
 	handler.RecentClicks(rr, req)
@@ -332,8 +356,8 @@ func TestHandlerRecentClicksSuccess(t *testing.T) {
 	userAgent := "Mozilla/5.0"
 	repo := fakeDashboardRepository{
 		listRecentClicksFn: func(_ context.Context, linkID string, limit int) ([]ClickEvent, error) {
-			if linkID != "link-1" {
-				t.Fatalf("expected link-1, got %s", linkID)
+			if linkID != testAnalyticsLinkID {
+				t.Fatalf("expected %s, got %s", testAnalyticsLinkID, linkID)
 			}
 			if limit != 2 {
 				t.Fatalf("expected limit 2, got %d", limit)
@@ -341,7 +365,7 @@ func TestHandlerRecentClicksSuccess(t *testing.T) {
 			return []ClickEvent{
 				{
 					ID:        "click-1",
-					LinkID:    "link-1",
+					LinkID:    testAnalyticsLinkID,
 					ClickedAt: clickedAt,
 					Referrer:  &referrer,
 					UserAgent: &userAgent,
@@ -350,7 +374,7 @@ func TestHandlerRecentClicksSuccess(t *testing.T) {
 		},
 	}
 	handler := NewHandler(NewService(repo, "https://tracklink.example.com"))
-	req := newRecentClicksRequest("/api/v1/links/link-1/clicks?limit=2", "link-1")
+	req := newRecentClicksRequest("/api/v1/links/"+testAnalyticsLinkID+"/clicks?limit=2", testAnalyticsLinkID)
 	req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
 		UserID: "owner-1",
 		Role:   "customer",
@@ -371,7 +395,7 @@ func TestHandlerRecentClicksSuccess(t *testing.T) {
 		t.Fatalf("expected one click event, got %d", len(resp.Items))
 	}
 	item := resp.Items[0]
-	if item.ID != "click-1" || item.LinkID != "link-1" {
+	if item.ID != "click-1" || item.LinkID != testAnalyticsLinkID {
 		t.Fatalf("unexpected click event identity: %+v", item)
 	}
 	if item.ClickedAt != clickedAt.Format(time.RFC3339) {
@@ -392,18 +416,22 @@ func TestHandlerRecentClicksInvalidLimit(t *testing.T) {
 	}{
 		{
 			name:   "not integer",
-			target: "/api/v1/links/link-1/clicks?limit=abc",
+			target: "/api/v1/links/" + testAnalyticsLinkID + "/clicks?limit=abc",
 		},
 		{
 			name:   "zero",
-			target: "/api/v1/links/link-1/clicks?limit=0",
+			target: "/api/v1/links/" + testAnalyticsLinkID + "/clicks?limit=0",
+		},
+		{
+			name:   "above max",
+			target: "/api/v1/links/" + testAnalyticsLinkID + "/clicks?limit=101",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := NewHandler(NewService(fakeDashboardRepository{}, "https://tracklink.example.com"))
-			req := newRecentClicksRequest(tt.target, "link-1")
+			req := newRecentClicksRequest(tt.target, testAnalyticsLinkID)
 			req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
 				UserID: "owner-1",
 				Role:   "customer",
@@ -426,7 +454,7 @@ func TestHandlerRecentClicksNotFound(t *testing.T) {
 		},
 	}
 	handler := NewHandler(NewService(repo, "https://tracklink.example.com"))
-	req := newRecentClicksRequest("/api/v1/links/missing/clicks", "missing")
+	req := newRecentClicksRequest("/api/v1/links/"+testAnalyticsMissingLinkID+"/clicks", testAnalyticsMissingLinkID)
 	req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
 		UserID: "owner-1",
 		Role:   "customer",
@@ -440,6 +468,30 @@ func TestHandlerRecentClicksNotFound(t *testing.T) {
 	}
 }
 
+func TestHandlerRecentClicksInvalidLinkID(t *testing.T) {
+	handler := NewHandler(NewService(fakeDashboardRepository{}, "https://tracklink.example.com"))
+	req := newRecentClicksRequest("/api/v1/links/not-a-uuid/clicks", "not-a-uuid")
+	req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
+		UserID: "owner-1",
+		Role:   "customer",
+	}))
+	rr := httptest.NewRecorder()
+
+	handler.RecentClicks(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+	}
+
+	var resp errorResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if _, ok := resp.Error.Fields["linkId"]; !ok {
+		t.Fatalf("expected linkId field error, got %v", resp.Error.Fields)
+	}
+}
+
 func TestHandlerRecentClicksInternalError(t *testing.T) {
 	repo := fakeDashboardRepository{
 		listRecentClicksFn: func(_ context.Context, _ string, _ int) ([]ClickEvent, error) {
@@ -447,7 +499,7 @@ func TestHandlerRecentClicksInternalError(t *testing.T) {
 		},
 	}
 	handler := NewHandler(NewService(repo, "https://tracklink.example.com"))
-	req := newRecentClicksRequest("/api/v1/links/link-1/clicks", "link-1")
+	req := newRecentClicksRequest("/api/v1/links/"+testAnalyticsLinkID+"/clicks", testAnalyticsLinkID)
 	req = req.WithContext(shared.WithCurrentSession(req.Context(), "session-1", session.SessionData{
 		UserID: "owner-1",
 		Role:   "customer",

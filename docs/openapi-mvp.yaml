@@ -203,6 +203,8 @@ paths:
       responses:
         '204':
           description: Link deleted
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
