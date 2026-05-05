@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"tracklink/internal/modules/links"
+	"tracklink/internal/shared"
 )
 
 const (
@@ -112,6 +113,8 @@ func (s *Service) LoadLinkAnalytics(ctx context.Context, userID, linkID string, 
 	}
 	if normalizedLinkID == "" {
 		fields["linkId"] = "Link ID is required"
+	} else if !shared.IsUUID(normalizedLinkID) {
+		fields["linkId"] = "Link ID must be a valid UUID"
 	}
 	if s.repo == nil {
 		fields["repository"] = "Repository is required"
@@ -199,6 +202,8 @@ func (s *Service) LoadRecentClicks(ctx context.Context, userID, linkID string, q
 	}
 	if normalizedLinkID == "" {
 		fields["linkId"] = "Link ID is required"
+	} else if !shared.IsUUID(normalizedLinkID) {
+		fields["linkId"] = "Link ID must be a valid UUID"
 	}
 	if s.repo == nil {
 		fields["repository"] = "Repository is required"
@@ -211,7 +216,7 @@ func (s *Service) LoadRecentClicks(ctx context.Context, userID, linkID string, q
 	if limit < 1 {
 		fields["limit"] = "Limit must be greater than or equal to 1"
 	} else if limit > maxRecentClicksLimit {
-		limit = maxRecentClicksLimit
+		fields["limit"] = "Limit must be less than or equal to 100"
 	}
 
 	if len(fields) > 0 {

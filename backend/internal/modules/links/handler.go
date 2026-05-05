@@ -217,7 +217,7 @@ func parseListLinksQuery(r *http.Request) (ListLinksQuery, map[string]string) {
 		} else if v < 1 {
 			fields["pageSize"] = "Page size must be greater than or equal to 1"
 		} else if v > maxListPageSize {
-			pageSize = maxListPageSize
+			fields["pageSize"] = "Page size must be less than or equal to 100"
 		} else {
 			pageSize = v
 		}
