@@ -13,13 +13,14 @@ import (
 )
 
 func Run() error {
-	log := applogger.New()
+	log := applogger.New("text")
 
 	cfg, err := config.Load()
 	if err != nil {
 		log.Error("config_load_failed", "error", err)
 		return fmt.Errorf("config: %w", err)
 	}
+	log = applogger.New(cfg.LogFormat)
 
 	postgresDB, err := db.NewPostgreSQL(cfg)
 	if err != nil {

@@ -3,13 +3,20 @@ package logger
 import (
 	"log/slog"
 	"os"
+	"strings"
 )
 
 // New returns a centralized app logger with INFO level.
-func New() *slog.Logger {
-	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	})
+func New(format string) *slog.Logger {
+	opts := &slog.HandlerOptions{Level: slog.LevelInfo}
+	format = strings.ToLower(strings.TrimSpace(format))
 
-	return slog.New(handler)
+	switch format {
+	case "json":
+		return slog.New(slog.NewJSONHandler(os.Stdout, opts))
+	case "text":
+		return slog.New(slog.NewTextHandler(os.Stdout, opts))
+	default:
+		return slog.New(slog.NewTextHandler(os.Stdout, opts))
+	}
 }

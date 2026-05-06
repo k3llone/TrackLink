@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	log := applogger.New()
+	log := applogger.New("text")
 
 	if err := app.Run(); err != nil {
 		log.Error("app_run_failed", "error", err)
