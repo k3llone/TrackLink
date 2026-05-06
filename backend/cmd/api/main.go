@@ -1,15 +1,17 @@
 package main
 
 import (
-	"log"
 	"os"
 
 	"tracklink/internal/app"
+	applogger "tracklink/internal/platform/logger"
 )
 
 func main() {
+	log := applogger.New()
+
 	if err := app.Run(); err != nil {
-		log.Printf("app: %v", err)
+		log.Error("app_run_failed", "error", err)
 		os.Exit(1)
 	}
 }

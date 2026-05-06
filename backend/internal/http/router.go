@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -34,15 +35,15 @@ type Deps struct {
 	Config   config.Config
 }
 
-func NewRouter(deps Deps) *chi.Mux {
-	return newRouter(deps, nil)
+func NewRouter(log *slog.Logger, deps Deps) *chi.Mux {
+	return newRouter(log, deps, nil)
 }
 
-func newRouter(deps Deps, registerAdminRoutes func(chi.Router)) *chi.Mux {
+func newRouter(log *slog.Logger, deps Deps, registerAdminRoutes func(chi.Router)) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(chiMiddleware.Recoverer)
-	r.Use(chiMiddleware.Logger)
+	r.Use(httpmiddleware.RequestLogger(log))
 
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
