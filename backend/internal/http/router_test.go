@@ -2,6 +2,8 @@ package httpserver
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -38,9 +40,13 @@ func (f *fakeRouterSessionStore) Delete(_ context.Context, sessionID string) err
 	return nil
 }
 
+func testLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelInfo}))
+}
+
 func TestLogoutRouteRequiresAuth(t *testing.T) {
 	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -66,7 +72,7 @@ func TestLogoutRouteRepeatLogoutReturnsUnauthorized(t *testing.T) {
 			},
 		},
 	}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -95,7 +101,7 @@ func TestLogoutRouteRepeatLogoutReturnsUnauthorized(t *testing.T) {
 
 func TestMeRouteRequiresAuth(t *testing.T) {
 	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -114,7 +120,7 @@ func TestMeRouteRequiresAuth(t *testing.T) {
 
 func TestMeRouteInvalidSessionReturnsUnauthorized(t *testing.T) {
 	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -141,7 +147,7 @@ func TestMeRouteValidSessionPassesMiddleware(t *testing.T) {
 			},
 		},
 	}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -161,7 +167,7 @@ func TestMeRouteValidSessionPassesMiddleware(t *testing.T) {
 
 func TestPublicRoutesAreNotBlockedByAuthMiddleware(t *testing.T) {
 	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -186,7 +192,7 @@ func TestPublicRoutesAreNotBlockedByAuthMiddleware(t *testing.T) {
 
 func TestPublicRedirectRouteIsNotBlockedByAuthMiddleware(t *testing.T) {
 	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -205,7 +211,7 @@ func TestPublicRedirectRouteIsNotBlockedByAuthMiddleware(t *testing.T) {
 
 func TestCreateLinkRouteRequiresAuth(t *testing.T) {
 	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -225,7 +231,7 @@ func TestCreateLinkRouteRequiresAuth(t *testing.T) {
 
 func TestListLinksRouteRequiresAuth(t *testing.T) {
 	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -245,7 +251,7 @@ func TestListLinksRouteRequiresAuth(t *testing.T) {
 
 func TestUpdateLinkStatusRouteRequiresAuth(t *testing.T) {
 	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -265,7 +271,7 @@ func TestUpdateLinkStatusRouteRequiresAuth(t *testing.T) {
 
 func TestDeleteLinkRouteRequiresAuth(t *testing.T) {
 	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -285,7 +291,7 @@ func TestDeleteLinkRouteRequiresAuth(t *testing.T) {
 
 func TestDashboardRouteRequiresAuth(t *testing.T) {
 	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -305,7 +311,7 @@ func TestDashboardRouteRequiresAuth(t *testing.T) {
 
 func TestLinkAnalyticsRouteRequiresAuth(t *testing.T) {
 	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -325,7 +331,7 @@ func TestLinkAnalyticsRouteRequiresAuth(t *testing.T) {
 
 func TestRecentClicksRouteRequiresAuth(t *testing.T) {
 	store := &fakeRouterSessionStore{sessions: map[string]session.SessionData{}}
-	router := NewRouter(Deps{
+	router := NewRouter(testLogger(), Deps{
 		Sessions: store,
 		Config: config.Config{
 			SessionTTL:          24 * time.Hour,
@@ -381,7 +387,7 @@ func TestAdminRouteRequiresAdmin(t *testing.T) {
 				store.sessions[tt.sessionID] = tt.sessionData
 			}
 
-			router := newRouter(Deps{
+			router := newRouter(testLogger(), Deps{
 				Sessions: store,
 				Config: config.Config{
 					SessionTTL:          24 * time.Hour,
@@ -459,7 +465,7 @@ func TestAdminEndpointsAreMountedAndProtected(t *testing.T) {
 				store.sessions[tt.sessionID] = tt.sessionData
 			}
 
-			router := NewRouter(Deps{
+			router := NewRouter(testLogger(), Deps{
 				Sessions: store,
 				Config: config.Config{
 					SessionTTL:          24 * time.Hour,
