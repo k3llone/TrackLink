@@ -25,6 +25,7 @@ Required variables:
 - `PUBLIC_URL`
 - `DATABASE_URL` (legacy fallback: `POSTGRES_DSN`)
 - `REDIS_ADDR` (legacy fallback: `REDIS_DSN`)
+- `LOG_FORMAT` (`text` or `json`, default: `text`)
 - `SESSION_SECRET`
 
 ## Run without Docker API container

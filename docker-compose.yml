@@ -8,6 +8,7 @@ services:
       PUBLIC_URL: "http://localhost:8080"
       DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/tracklink?sslmode=disable"
       REDIS_ADDR: "redis://redis:6379/0"
+      LOG_FORMAT: "text"
       SESSION_SECRET: "change-me-in-dev"
       SESSION_TTL: "24h"
       SESSION_COOKIE_SECURE: "false"

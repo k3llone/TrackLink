@@ -16,6 +16,7 @@ type Config struct {
 	PublicURL           string
 	DatabaseURL         string
 	RedisAddr           string
+	LogFormat           string
 	SessionSecret       string
 	SessionTTL          time.Duration
 	SessionCookieSecure bool
@@ -33,8 +34,12 @@ func Load() (Config, error) {
 		PublicURL:           getenv("PUBLIC_URL", "http://localhost:8080"),
 		DatabaseURL:         getenvAny([]string{"DATABASE_URL", "POSTGRES_DSN"}, "postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable"),
 		RedisAddr:           normalizeRedisAddr(getenvAny([]string{"REDIS_ADDR", "REDIS_DSN"}, "localhost:6379")),
+		LogFormat:           strings.ToLower(strings.TrimSpace(getenv("LOG_FORMAT", "text"))),
 		SessionSecret:       getenv("SESSION_SECRET", "dev-session-secret"),
 		SessionCookieSecure: getenvBool("SESSION_COOKIE_SECURE", false),
+	}
+	if cfg.LogFormat != "text" && cfg.LogFormat != "json" {
+		return Config{}, fmt.Errorf("LOG_FORMAT must be one of: text, json")
 	}
 
 	var err error
