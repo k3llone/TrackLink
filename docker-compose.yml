@@ -14,12 +14,34 @@ services:
       SESSION_COOKIE_SECURE: "false"
       POSTGRES_PING_TIMEOUT: "3s"
     ports:
-      - "8080:8080"
+      - "8081:8080"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    volumes:
+      - frontend_dist:/srv
+    restart: "no"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: tracklink-caddy
+    ports:
+      - "8080:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - frontend_dist:/srv:ro
+    depends_on:
+      frontend:
+        condition: service_completed_successfully
+      api:
+        condition: service_started
     restart: unless-stopped
 
   postgres:
@@ -58,3 +80,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  frontend_dist:
