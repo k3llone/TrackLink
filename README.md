@@ -1,49 +1,147 @@
-# TrackLink
+# TrackLink 🔗✨
 
-Backend foundation for TrackLink.
+![Go](https://img.shields.io/badge/Go-Backend-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![Vue](https://img.shields.io/badge/Vue-Frontend-42B883?style=for-the-badge&logo=vue.js&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-Build-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-Cache-DC382D?style=for-the-badge&logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Deploy-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
-## Local run (one command)
+---
 
-Run API + PostgreSQL + Redis:
+## Что такое TrackLink?
 
-`docker compose up --build`
+**TrackLink** - это веб-платформа для создания, управления и анализа коротких ссылок.
 
-After startup:
+Проект помогает превращать длинные и неудобные URL в аккуратные короткие ссылки, которыми проще делиться в мессенджерах, социальных сетях, учебных материалах, Telegram-каналах и рабочих документах.
 
-- API health: `http://localhost:8080/health`
-- API base group: `http://localhost:8080/api/v1`
+TrackLink - это не просто сервис для сокращения ссылок.  
+Это удобное место, где можно создать ссылку, быстро скопировать её, найти позже, отключить при необходимости и посмотреть, переходят ли по ней люди.
 
-## Environment
+---
 
-For local `go run`, copy and adjust:
+## Основная идея 💡
 
-`backend/.env.example` -> `backend/.env`
+Длинные ссылки часто выглядят громоздко, теряются в переписках и не всегда вызывают доверие.
 
-Required variables:
+TrackLink решает эту проблему просто:
 
-- `HTTP_ADDR`
-- `PUBLIC_URL`
-- `DATABASE_URL` (legacy fallback: `POSTGRES_DSN`)
-- `REDIS_ADDR` (legacy fallback: `REDIS_DSN`)
-- `LOG_FORMAT` (`text` or `json`, default: `text`)
-- `SESSION_SECRET`
+```text
+Создать ссылку → Поделиться → Посмотреть результат
+```
 
-## Run without Docker API container
+Пользователь получает короткую ссылку, управляет ею в личном кабинете и видит базовую статистику переходов.
 
-You can run only infra:
+---
 
-`docker compose up -d postgres redis`
+## Что умеет TrackLink
 
-Then run backend app from `backend` directory:
+### 🔗 Создавать короткие ссылки
 
-`go run ./cmd/api`
+Пользователь вставляет длинный URL и получает короткую ссылку, которую удобно отправить другим.
 
-## Migrations
+Например:
 
-Migrations directory: `backend/migrations`
+```text
+https://example.com/some/very/long/path/with/query?value=123
+```
 
-Recommended CLI: [golang-migrate](https://github.com/golang-migrate/migrate)
+может превратиться в:
 
-Example command from `backend` directory:
+```text
+https://track.link/a8K2xQ
+```
 
-`migrate -path ./migrations -database "$DATABASE_URL" up`
+---
+
+### 🏷️ Поддерживать понятные alias
+
+Можно задать собственное имя для ссылки:
+
+```text
+https://track.link/my-course
+```
+
+Такая ссылка выглядит аккуратнее и понятнее, особенно если её нужно отправить в чат, вставить в презентацию или разместить в канале.
+
+---
+
+### 📊 Показывать аналитику
+
+TrackLink помогает понять, работает ли ссылка:
+
+- сколько раз по ней переходили;
+- были ли переходы за последние 24 часа;
+- как менялась активность по времени;
+- какие переходы были последними.
+
+Это особенно полезно, если ссылка размещается не для одного человека, а для аудитории.
+
+---
+
+### 🧭 Хранить ссылки в личном кабинете
+
+Созданные ссылки не теряются в переписках и истории браузера.  
+Пользователь может вернуться в dashboard и найти нужную ссылку позже.
+
+---
+
+### 🚦 Управлять состоянием ссылок
+
+Ссылку можно активировать, деактивировать или удалить.  
+Если ссылка больше не должна работать, её можно отключить без хаоса и ручного поиска старых сообщений.
+
+---
+
+### 🛡️ Поддерживать базовую модерацию
+
+Администратор может заблокировать ссылку, если она ведёт на нежелательный или опасный ресурс.
+
+---
+
+## Для кого проект
+
+TrackLink может быть полезен:
+
+- студентам, которые часто делятся учебными материалами;
+- авторам Telegram-каналов;
+- digital-специалистам;
+- небольшим командам;
+- преподавателям и организаторам;
+- людям, которым важно не только отправить ссылку, но и потом найти её;
+- всем, кто устал от длинных URL-монстров на пол-экрана.
+
+---
+
+## Стек технологий ⚙️
+
+Проект использует современный и практичный стек:
+
+- **Go** - backend;
+- **Chi** - HTTP router;
+- **Vue** - frontend;
+- **Vue Router** - маршрутизация SPA;
+- **Vite** - сборка frontend;
+- **PostgreSQL** - основная база данных;
+- **Redis** - cache и session-related задачи;
+- **Docker** - контейнеризация;
+- **Caddy** - reverse proxy и HTTPS;
+- **GitHub Actions** - автоматизация deployment.
+
+---
+
+## MVP
+
+В первую версию TrackLink входят:
+
+- регистрация и вход пользователя;
+- создание короткой ссылки;
+- пользовательский alias;
+- список ссылок пользователя;
+- управление статусом ссылки;
+- удаление ссылки;
+- переход по короткой ссылке;
+- фиксация событий перехода;
+- базовая аналитика;
+- dashboard;
+- минимальная административная блокировка ссылок.
