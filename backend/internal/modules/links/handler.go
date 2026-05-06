@@ -160,7 +160,7 @@ func MapLinkToResponse(link Link, publicURL string) LinkResponse {
 		OwnerID:     link.OwnerID,
 		Code:        link.Code,
 		CustomAlias: link.CustomAlias,
-		ShortURL:    strings.TrimRight(publicURL, "/") + "/" + shortPath,
+		ShortURL:    strings.TrimRight(publicURL, "/") + "/s/" + shortPath,
 		TargetURL:   link.TargetURL,
 		Status:      link.Status,
 		TotalClicks: link.TotalClicks,

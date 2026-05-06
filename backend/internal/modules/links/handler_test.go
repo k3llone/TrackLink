@@ -66,7 +66,7 @@ func TestHandlerCreateSuccess(t *testing.T) {
 	if resp.OwnerID != "b3f4c113-6f22-42f2-8b45-6e88b2f9b71a" {
 		t.Fatalf("unexpected owner id: %s", resp.OwnerID)
 	}
-	if !strings.HasPrefix(resp.ShortURL, "https://tracklink.example.com/") {
+	if !strings.HasPrefix(resp.ShortURL, "https://tracklink.example.com/s/") {
 		t.Fatalf("unexpected shortUrl: %s", resp.ShortURL)
 	}
 }
@@ -157,7 +157,7 @@ func TestHandlerCreateWithCustomAliasUsesAliasInShortURL(t *testing.T) {
 	if resp.CustomAlias == nil || *resp.CustomAlias != "spring-campaign" {
 		t.Fatalf("expected customAlias spring-campaign, got %v", resp.CustomAlias)
 	}
-	if resp.ShortURL != "https://tracklink.example.com/spring-campaign" {
+	if resp.ShortURL != "https://tracklink.example.com/s/spring-campaign" {
 		t.Fatalf("unexpected shortUrl: %s", resp.ShortURL)
 	}
 }
@@ -491,7 +491,7 @@ func TestHandlerListResponseContainsFullLinkFields(t *testing.T) {
 	if first.CustomAlias == nil || *first.CustomAlias != "campaign" {
 		t.Fatalf("expected custom alias campaign, got %v", first.CustomAlias)
 	}
-	if first.ShortURL != "https://tracklink.example.com/campaign" {
+	if first.ShortURL != "https://tracklink.example.com/s/campaign" {
 		t.Fatalf("unexpected shortUrl for alias item: %s", first.ShortURL)
 	}
 	if first.LastClickedAt == nil {
@@ -502,7 +502,7 @@ func TestHandlerListResponseContainsFullLinkFields(t *testing.T) {
 	if second.CustomAlias != nil {
 		t.Fatalf("expected nil customAlias for second item, got %v", second.CustomAlias)
 	}
-	if second.ShortURL != "https://tracklink.example.com/noalias" {
+	if second.ShortURL != "https://tracklink.example.com/s/noalias" {
 		t.Fatalf("unexpected shortUrl for code item: %s", second.ShortURL)
 	}
 	if second.LastClickedAt != nil {

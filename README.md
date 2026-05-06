@@ -130,6 +130,51 @@ TrackLink может быть полезен:
 
 ---
 
+## Локальный запуск через Docker Compose
+
+Запустить backend, PostgreSQL, Redis, собрать frontend и поднять Caddy:
+
+```bash
+docker compose up --build
+```
+
+Открыть приложение в браузере:
+
+```text
+http://localhost:8080
+```
+
+Caddy отдаёт собранную Vue/Vite-статику из `frontend/dist` и проксирует backend endpoints внутри Docker network:
+
+```text
+http://localhost:8080/api/v1/...
+http://localhost:8080/health
+http://localhost:8080/s/{code}
+```
+
+После изменений во frontend пересоберите контейнеры той же командой:
+
+```bash
+docker compose up --build
+```
+
+Frontend использует `VITE_API_BASE_URL`. Значение по умолчанию для локального compose-запуска:
+
+```env
+VITE_API_BASE_URL=/api/v1
+```
+
+Префикс `/s/{code}` нужен, чтобы публичные короткие ссылки не конфликтовали с frontend SPA routes (`/login`, `/dashboard`, `/links`, `/profile`, `/admin`). На отдельном short-domain в будущем можно вернуть формат `/{code}` без конфликта.
+
+Backend напрямую с хоста доступен на `http://localhost:8081`, но браузерное приложение должно ходить через Caddy:
+
+- frontend: `http://localhost:8080`
+- API: `http://localhost:8080/api/v1/...`
+- health: `http://localhost:8080/health`
+- short redirect: `http://localhost:8080/s/{code}`
+
+---
+
 ## MVP
 
 В первую версию TrackLink входят:

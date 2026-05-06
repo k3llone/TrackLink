@@ -183,7 +183,7 @@ func TestServiceLoadDashboardReturnsTotalClicksAndRecentLinks(t *testing.T) {
 	if len(resp.RecentLinks) != 1 {
 		t.Fatalf("expected one recent link, got %d", len(resp.RecentLinks))
 	}
-	if resp.RecentLinks[0].ShortURL != "https://tracklink.example.com/abc123" {
+	if resp.RecentLinks[0].ShortURL != "https://tracklink.example.com/s/abc123" {
 		t.Fatalf("unexpected short url: %s", resp.RecentLinks[0].ShortURL)
 	}
 	if resp.RecentLinks[0].TotalClicks != 42 {

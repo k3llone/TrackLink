@@ -20,9 +20,9 @@ func TestHandlerRedirectByCodeReturnsNotFound(t *testing.T) {
 	}
 	handler := NewHandler(NewService(repo, fakeAnalyticsRepository{}))
 	router := chi.NewRouter()
-	router.Get("/{code}", handler.RedirectByCode)
+	router.Get("/s/{code}", handler.RedirectByCode)
 
-	req := httptest.NewRequest(http.MethodGet, "/missing", nil)
+	req := httptest.NewRequest(http.MethodGet, "/s/missing", nil)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -89,9 +89,9 @@ func TestHandlerRedirectByCodeReturnsStatusPagesForUnavailableLink(t *testing.T)
 			}
 			handler := NewHandler(NewService(repo, fakeAnalyticsRepository{}))
 			router := chi.NewRouter()
-			router.Get("/{code}", handler.RedirectByCode)
+			router.Get("/s/{code}", handler.RedirectByCode)
 
-			req := httptest.NewRequest(http.MethodGet, "/"+tt.name, nil)
+			req := httptest.NewRequest(http.MethodGet, "/s/"+tt.name, nil)
 			rr := httptest.NewRecorder()
 			router.ServeHTTP(rr, req)
 
@@ -142,9 +142,9 @@ func TestHandlerRedirectByCodeResolvesActiveLink(t *testing.T) {
 	}
 	handler := NewHandler(NewService(repo, analyticsRepo))
 	router := chi.NewRouter()
-	router.Get("/{code}", handler.RedirectByCode)
+	router.Get("/s/{code}", handler.RedirectByCode)
 
-	req := httptest.NewRequest(http.MethodGet, "/promo", nil)
+	req := httptest.NewRequest(http.MethodGet, "/s/promo", nil)
 	req.Header.Set("Referer", "https://source.example.com")
 	req.Header.Set("User-Agent", "test-agent")
 	rr := httptest.NewRecorder()

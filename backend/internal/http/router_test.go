@@ -200,7 +200,7 @@ func TestPublicRedirectRouteIsNotBlockedByAuthMiddleware(t *testing.T) {
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/some-code", nil)
+	req := httptest.NewRequest(http.MethodGet, "/s/some-code", nil)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 

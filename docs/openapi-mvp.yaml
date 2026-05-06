@@ -334,7 +334,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /{code}:
+  /s/{code}:
     get:
       tags: [Redirect]
       summary: Open short URL and redirect visitor
@@ -531,7 +531,7 @@ components:
         shortUrl:
           type: string
           format: uri
-          example: https://tracklink.example.com/my-link
+          example: https://tracklink.example.com/s/my-link
         targetUrl:
           type: string
           format: uri

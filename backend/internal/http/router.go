@@ -97,7 +97,7 @@ func newRouter(log *slog.Logger, deps Deps, registerAdminRoutes func(chi.Router)
 	apiV1.Mount("/admin", adminV1)
 	r.Mount("/api/v1", apiV1)
 
-	r.Get("/{code}", redirectHandler.RedirectByCode)
+	r.Get("/s/{code}", redirectHandler.RedirectByCode)
 
 	return r
 }
