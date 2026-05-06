@@ -21,7 +21,12 @@ type AppRouteMeta = {
 };
 
 declare module "vue-router" {
-  interface RouteMeta extends AppRouteMeta {}
+  interface RouteMeta {
+    layout: AppRouteMeta["layout"];
+    requiresAuth?: AppRouteMeta["requiresAuth"];
+    requiresGuest?: AppRouteMeta["requiresGuest"];
+    requiresAdmin?: AppRouteMeta["requiresAdmin"];
+  }
 }
 
 const routes: RouteRecordRaw[] = [
