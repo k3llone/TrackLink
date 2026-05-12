@@ -51,7 +51,7 @@ const onLogout = () => emit("logout");
 
       <RouterLink :to="ROUTES.settings" class="app-header__settings-link">Settings</RouterLink>
 
-      <UiButton variant="ghost" size="sm" @click="onLogout">
+      <UiButton variant="ghost" size="sm" :loading="loading" @click="onLogout">
         <span>Logout</span>
         <template #iconRight>
           <svg viewBox="0 0 24 24" class="app-header__logout-icon" aria-hidden="true">

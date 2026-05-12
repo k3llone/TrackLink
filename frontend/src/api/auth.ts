@@ -32,3 +32,5 @@ export const registerUser = (payload: RegisterRequest) => http.post<RegisterResp
 export const loginUser = (payload: LoginRequest) => http.post<AuthResponse>("/auth/login", payload);
 
 export const getCurrentUser = () => http.get<User>("/me");
+
+export const logoutUser = () => http.post<void>("/auth/logout");
