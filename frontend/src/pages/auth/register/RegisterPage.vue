@@ -1,11 +1,7 @@
 <script setup lang="ts">
-import { UiPageState } from "@/shared/ui";
+import RegisterForm from "@/features/auth/register/RegisterForm.vue";
 </script>
 
 <template>
-  <UiPageState
-    type="empty"
-    title="Register"
-    description="Registration form will be implemented in the dedicated auth feature."
-  />
+  <RegisterForm />
 </template>

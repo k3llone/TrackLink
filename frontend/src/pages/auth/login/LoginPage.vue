@@ -1,11 +1,7 @@
 <script setup lang="ts">
-import { UiPageState } from "@/shared/ui";
+import LoginForm from "@/features/auth/login/LoginForm.vue";
 </script>
 
 <template>
-  <UiPageState
-    type="empty"
-    title="Login"
-    description="Login form will be implemented in the dedicated auth feature."
-  />
+  <LoginForm />
 </template>
