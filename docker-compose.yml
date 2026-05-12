@@ -16,11 +16,25 @@ services:
     ports:
       - "8081:8080"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     restart: unless-stopped
+
+  migrate:
+    image: postgres:16-alpine
+    container_name: tracklink-migrate
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/tracklink?sslmode=disable"
+    volumes:
+      - ./backend/migrations:/migrations:ro
+      - ./backend/scripts/run-migrations.sh:/scripts/run-migrations.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "tr -d '\\r' < /scripts/run-migrations.sh | sh"]
+    restart: "no"
 
   frontend:
     build:
