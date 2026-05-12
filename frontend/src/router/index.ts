@@ -11,6 +11,7 @@ import EditLinkPage from "@/pages/links/edit/EditLinkPage.vue";
 import SettingsPage from "@/pages/settings/SettingsPage.vue";
 import AdminPage from "@/pages/admin/AdminPage.vue";
 import NotFoundPage from "@/pages/not-found/NotFoundPage.vue";
+import { useSession } from "@/entities/session/useSession";
 import { ROUTES } from "@/shared/lib/routes/paths";
 
 type AppRouteMeta = {
@@ -113,20 +114,23 @@ export const router = createRouter({
   routes,
 });
 
-router.beforeEach((to) => {
-  // TODO: replace with real session store when auth module is ready.
-  const isAuthenticated: boolean | null = null;
-  const isAdmin: boolean | null = null;
+router.beforeEach(async (to) => {
+  const session = useSession();
+  const shouldResolveSession = to.meta.requiresAuth || to.meta.requiresGuest || to.meta.requiresAdmin;
 
-  if (to.meta.requiresAuth && isAuthenticated === false) {
+  if (shouldResolveSession) {
+    await session.loadCurrentUser();
+  }
+
+  if (to.meta.requiresAuth && !session.isAuthenticated.value) {
     return { path: ROUTES.login };
   }
 
-  if (to.meta.requiresGuest && isAuthenticated === true) {
+  if (to.meta.requiresGuest && session.isAuthenticated.value) {
     return { path: ROUTES.dashboard };
   }
 
-  if (to.meta.requiresAdmin && isAdmin === false) {
+  if (to.meta.requiresAdmin && !session.isAdmin.value) {
     return { path: ROUTES.dashboard };
   }
 
