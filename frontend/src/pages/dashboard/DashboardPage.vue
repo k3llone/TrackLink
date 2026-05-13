@@ -4,7 +4,7 @@ import { useRouter } from "vue-router";
 import { getDashboard, type DashboardResponse } from "@/api/analytics";
 import { listLinks } from "@/api/links";
 import type { ApiClientError } from "@/api/types";
-import type { Link, LinkStatus } from "@/entities/link/link.types";
+import type { Link, LinkStatus, Pagination } from "@/entities/link/link.types";
 import { DashboardSummary } from "@/widgets/dashboard";
 import { LinksTable } from "@/widgets/links-table";
 import { ROUTES } from "@/shared/lib/routes/paths";
@@ -16,6 +16,7 @@ const dashboard = ref<DashboardResponse | null>(null);
 const isDashboardLoading = ref(false);
 const dashboardErrorMessage = ref("");
 const links = ref<Link[]>([]);
+const linksPagination = ref<Pagination | null>(null);
 const isLinksLoading = ref(false);
 const linksErrorMessage = ref("");
 const linksPage = ref(1);
@@ -102,12 +103,14 @@ const loadLinks = async () => {
     }
 
     links.value = response.items;
+    linksPagination.value = response.pagination;
   } catch (error: unknown) {
     if (requestId !== linksRequestId) {
       return;
     }
 
     links.value = [];
+    linksPagination.value = null;
     linksErrorMessage.value = getLinksErrorMessage(error);
   } finally {
     if (requestId === linksRequestId) {
@@ -120,6 +123,11 @@ const onLinkFiltersChange = (filters: { q: string; status: LinkStatus | "" }) =>
   linksQ.value = filters.q;
   linksStatus.value = filters.status;
   linksPage.value = 1;
+  void loadLinks();
+};
+
+const onLinksPageChange = (page: number) => {
+  linksPage.value = page;
   void loadLinks();
 };
 
@@ -176,11 +184,13 @@ onMounted(() => {
 
       <LinksTable
         :links="links"
+        :pagination="linksPagination"
         :loading="isLinksLoading"
         :error-message="linksErrorMessage"
         :q="linksQ"
         :status="linksStatus"
         @filters-change="onLinkFiltersChange"
+        @page-change="onLinksPageChange"
         @retry="loadLinks"
       />
     </div>

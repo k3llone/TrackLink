@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import type { Link, LinkStatus } from "@/entities/link/link.types";
-import { UiInput, UiPageState, UiTable, type UiTableColumn } from "@/shared/ui";
+import { computed } from "vue";
+import type { Link, LinkStatus, Pagination } from "@/entities/link/link.types";
+import { UiButton, UiInput, UiPageState, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
+import LinkRowActions from "./LinkRowActions.vue";
 
 const props = withDefaults(
   defineProps<{
     links?: Link[];
+    pagination?: Pagination | null;
     loading?: boolean;
     errorMessage?: string;
     q?: string;
@@ -12,6 +15,7 @@ const props = withDefaults(
   }>(),
   {
     links: () => [],
+    pagination: null,
     loading: false,
     errorMessage: "",
     q: "",
@@ -21,15 +25,16 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   "filters-change": [filters: { q: string; status: LinkStatus | "" }];
+  "page-change": [page: number];
   retry: [];
 }>();
 
 const columns: UiTableColumn[] = [
-  { key: "shortUrl", label: "Short URL", width: "24%" },
-  { key: "targetUrl", label: "Target URL", width: "34%" },
-  { key: "createdAt", label: "Создана", width: "16%" },
-  { key: "status", label: "Статус", width: "14%" },
-  { key: "totalClicks", label: "Переходы", width: "12%", align: "right" },
+  { key: "shortUrl", label: "Short URL", width: "22%" },
+  { key: "targetUrl", label: "Target URL", width: "30%" },
+  { key: "createdAt", label: "Создана", width: "14%" },
+  { key: "status", label: "Статус", width: "13%" },
+  { key: "totalClicks", label: "Переходы", width: "10%", align: "right" },
 ];
 
 const statusOptions: Array<{ value: LinkStatus | ""; label: string }> = [
@@ -40,6 +45,49 @@ const statusOptions: Array<{ value: LinkStatus | ""; label: string }> = [
   { value: "deleted", label: "Удаленные" },
 ];
 
+const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+});
+
+const numberFormatter = new Intl.NumberFormat("ru-RU");
+
+const statusLabels: Record<LinkStatus, string> = {
+  active: "Активна",
+  inactive: "Неактивна",
+  blocked: "Заблокирована",
+  deleted: "Удалена",
+};
+
+const currentPage = computed(() => props.pagination?.page ?? 1);
+const totalPages = computed(() => props.pagination?.totalPages ?? 0);
+const totalItems = computed(() => props.pagination?.totalItems ?? 0);
+const hasFilters = computed(() => Boolean(props.q.trim() || props.status));
+const showPagination = computed(() => Boolean(props.pagination && totalItems.value > 0));
+const canGoPrevious = computed(() => currentPage.value > 1 && !props.loading);
+const canGoNext = computed(() => currentPage.value < totalPages.value && !props.loading);
+const totalItemsLabel = computed(() => numberFormatter.format(totalItems.value));
+const emptyDescription = computed(() =>
+  hasFilters.value
+    ? "По текущим фильтрам ссылок не найдено."
+    : "Создайте первую короткую ссылку, чтобы она появилась в списке.",
+);
+
+const formatDate = (value: string) => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return dateFormatter.format(date);
+};
+
+const formatNumber = (value: number) => numberFormatter.format(value);
+
+const getShortUrl = (link: Link) => link.shortUrl || link.code;
+
 const onSearchChange = (q: string) => {
   emit("filters-change", { q, status: props.status });
 };
@@ -47,6 +95,18 @@ const onSearchChange = (q: string) => {
 const onStatusChange = (event: Event) => {
   const target = event.target as HTMLSelectElement;
   emit("filters-change", { q: props.q, status: target.value as LinkStatus | "" });
+};
+
+const goToPreviousPage = () => {
+  if (canGoPrevious.value) {
+    emit("page-change", currentPage.value - 1);
+  }
+};
+
+const goToNextPage = () => {
+  if (canGoNext.value) {
+    emit("page-change", currentPage.value + 1);
+  }
 };
 
 const onRetry = () => emit("retry");
@@ -67,13 +127,12 @@ const onRetry = () => emit("retry");
           type="search"
           placeholder="Поиск по ссылке или URL"
           autocomplete="off"
-          :disabled="loading"
           @update:model-value="onSearchChange"
         />
 
         <label class="links-table__status-filter">
           <span class="links-table__status-label">Статус</span>
-          <select class="links-table__status-select" :value="status" :disabled="loading" @change="onStatusChange">
+          <select class="links-table__status-select" :value="status" @change="onStatusChange">
             <option v-for="option in statusOptions" :key="option.value || 'all'" :value="option.value">
               {{ option.label }}
             </option>
@@ -104,10 +163,61 @@ const onRetry = () => emit("retry");
         <UiPageState
           type="empty"
           title="Ссылок пока нет"
-          description="Создайте первую короткую ссылку, чтобы она появилась в списке."
+          :description="emptyDescription"
         />
       </template>
+
+      <template #cell="{ row, column }">
+        <a
+          v-if="column.key === 'shortUrl'"
+          class="links-table__url links-table__url--short"
+          :href="getShortUrl(row)"
+          target="_blank"
+          rel="noreferrer"
+          :title="getShortUrl(row)"
+        >
+          {{ getShortUrl(row) }}
+        </a>
+
+        <a
+          v-else-if="column.key === 'targetUrl'"
+          class="links-table__url"
+          :href="row.targetUrl"
+          target="_blank"
+          rel="noreferrer"
+          :title="row.targetUrl"
+        >
+          {{ row.targetUrl }}
+        </a>
+
+        <span v-else-if="column.key === 'createdAt'">{{ formatDate(row.createdAt) }}</span>
+
+        <UiStatusBadge v-else-if="column.key === 'status'" :status="row.status" :label="statusLabels[row.status]" />
+
+        <span v-else-if="column.key === 'totalClicks'">{{ formatNumber(row.totalClicks) }}</span>
+
+        <span v-else>{{ row[column.key] }}</span>
+      </template>
+
+      <template #actions="{ row }">
+        <LinkRowActions :link="row" />
+      </template>
     </UiTable>
+
+    <footer v-if="showPagination" class="links-table__pagination" aria-label="Пагинация списка ссылок">
+      <span class="links-table__pagination-summary">
+        {{ totalItemsLabel }} ссылок · страница {{ currentPage }} из {{ totalPages }}
+      </span>
+
+      <div class="links-table__pagination-actions">
+        <UiButton variant="secondary" size="sm" type="button" :disabled="!canGoPrevious" @click="goToPreviousPage">
+          Назад
+        </UiButton>
+        <UiButton variant="secondary" size="sm" type="button" :disabled="!canGoNext" @click="goToNextPage">
+          Вперед
+        </UiButton>
+      </div>
+    </footer>
   </section>
 </template>
 
@@ -187,9 +297,40 @@ const onRetry = () => emit("retry");
   opacity: 0.65;
 }
 
+.links-table__url {
+  display: inline-block;
+  max-width: 260px;
+  color: var(--tl-color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.links-table__url--short {
+  color: var(--tl-color-primary);
+  font-weight: 700;
+}
+
+.links-table__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--tl-color-text-muted);
+  font-size: 14px;
+}
+
+.links-table__pagination-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 @media (max-width: 767px) {
   .links-table__header,
-  .links-table__filters {
+  .links-table__filters,
+  .links-table__pagination {
     align-items: stretch;
     flex-direction: column;
   }
@@ -200,6 +341,10 @@ const onRetry = () => emit("retry");
 
   .links-table__search {
     min-width: 0;
+  }
+
+  .links-table__url {
+    max-width: 220px;
   }
 }
 </style>
