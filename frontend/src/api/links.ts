@@ -23,3 +23,5 @@ export const listLinks = (params: ListLinksParams = {}) => {
 };
 
 export const createLink = (payload: CreateLinkRequest) => http.post<Link>("/links", payload);
+
+export const deleteLink = (linkId: string) => http.delete<void>(`/links/${encodeURIComponent(linkId)}`);

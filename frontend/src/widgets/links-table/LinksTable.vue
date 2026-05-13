@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { getLinkAnalytics, type LinkAnalyticsResponse } from "@/api/analytics";
+import type { ApiClientError } from "@/api/types";
 import type { Link, LinkStatus, Pagination } from "@/entities/link/link.types";
 import { UiButton, UiInput, UiPageState, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
+import LinkAnalyticsModal from "./LinkAnalyticsModal.vue";
 import LinkRowActions from "./LinkRowActions.vue";
 
 const props = withDefaults(
@@ -24,6 +27,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   "filters-change": [filters: { q: string }];
   "page-change": [page: number];
+  "link-deleted": [link: Link];
   retry: [];
 }>();
 
@@ -77,6 +81,12 @@ const formatDate = (value: string) => {
 const formatNumber = (value: number) => numberFormatter.format(value);
 
 const getShortUrl = (link: Link) => link.shortUrl || link.code;
+const selectedLink = ref<Link | null>(null);
+const selectedLinkAnalytics = ref<LinkAnalyticsResponse | null>(null);
+const isAnalyticsOpen = ref(false);
+const isAnalyticsLoading = ref(false);
+const analyticsErrorMessage = ref("");
+let analyticsRequestId = 0;
 
 const onSearchChange = (q: string) => {
   emit("filters-change", { q });
@@ -94,6 +104,67 @@ const goToNextPage = () => {
   }
 };
 
+const isApiClientError = (error: unknown): error is ApiClientError =>
+  error instanceof Error && error.name === "ApiClientError" && "status" in error;
+
+const getAnalyticsErrorMessage = (error: unknown) => {
+  if (isApiClientError(error)) {
+    if (error.status === 401) {
+      return "Сессия недействительна. Войдите заново, чтобы открыть аналитику.";
+    }
+
+    if (error.status === 404) {
+      return "Ссылка не найдена или недоступна для просмотра.";
+    }
+  }
+
+  return "Не удалось загрузить аналитику ссылки. Повторите попытку позже.";
+};
+
+const loadSelectedLinkAnalytics = async () => {
+  if (!selectedLink.value) {
+    return;
+  }
+
+  const requestId = ++analyticsRequestId;
+  isAnalyticsLoading.value = true;
+  analyticsErrorMessage.value = "";
+
+  try {
+    const response = await getLinkAnalytics(selectedLink.value.id);
+
+    if (requestId !== analyticsRequestId) {
+      return;
+    }
+
+    selectedLinkAnalytics.value = response;
+  } catch (error: unknown) {
+    if (requestId !== analyticsRequestId) {
+      return;
+    }
+
+    selectedLinkAnalytics.value = null;
+    analyticsErrorMessage.value = getAnalyticsErrorMessage(error);
+  } finally {
+    if (requestId === analyticsRequestId) {
+      isAnalyticsLoading.value = false;
+    }
+  }
+};
+
+const openLinkAnalytics = (row: unknown) => {
+  const link = row as Link;
+  selectedLink.value = link;
+  selectedLinkAnalytics.value = null;
+  isAnalyticsOpen.value = true;
+  void loadSelectedLinkAnalytics();
+};
+
+const onAnalyticsRetry = () => {
+  void loadSelectedLinkAnalytics();
+};
+
+const onLinkDeleted = (link: Link) => emit("link-deleted", link);
 const onRetry = () => emit("retry");
 </script>
 
@@ -126,7 +197,15 @@ const onRetry = () => emit("retry");
       @action="onRetry"
     />
 
-    <UiTable v-else :columns="columns" :rows="links" :loading="loading" empty-text="Ссылок пока нет.">
+    <UiTable
+      v-else
+      :columns="columns"
+      :rows="links"
+      :loading="loading"
+      empty-text="Ссылок пока нет."
+      row-clickable
+      @row-click="openLinkAnalytics"
+    >
       <template #loading>
         <UiPageState
           type="loading"
@@ -151,6 +230,7 @@ const onRetry = () => emit("retry");
           target="_blank"
           rel="noreferrer"
           :title="getShortUrl(row)"
+          @click.stop
         >
           {{ getShortUrl(row) }}
         </a>
@@ -162,6 +242,7 @@ const onRetry = () => emit("retry");
           target="_blank"
           rel="noreferrer"
           :title="row.targetUrl"
+          @click.stop
         >
           {{ row.targetUrl }}
         </a>
@@ -176,7 +257,7 @@ const onRetry = () => emit("retry");
       </template>
 
       <template #actions="{ row }">
-        <LinkRowActions :link="row" />
+        <LinkRowActions :link="row" @deleted="onLinkDeleted" />
       </template>
     </UiTable>
 
@@ -194,6 +275,15 @@ const onRetry = () => emit("retry");
         </UiButton>
       </div>
     </footer>
+
+    <LinkAnalyticsModal
+      v-model="isAnalyticsOpen"
+      :link="selectedLink"
+      :analytics="selectedLinkAnalytics"
+      :loading="isAnalyticsLoading"
+      :error-message="analyticsErrorMessage"
+      @retry="onAnalyticsRetry"
+    />
   </section>
 </template>
 

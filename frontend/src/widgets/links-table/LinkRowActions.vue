@@ -1,113 +1,143 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
+import { deleteLink } from "@/api/links";
+import type { ApiClientError } from "@/api/types";
 import type { Link } from "@/entities/link/link.types";
 import { useToast } from "@/shared/composables/useToast";
-import { getLinkDetailsPath, getLinkEditPath } from "@/shared/lib/routes/paths";
-import { UiButton } from "@/shared/ui";
+import { getLinkEditPath } from "@/shared/lib/routes/paths";
+import { UiButton, UiConfirmDialog } from "@/shared/ui";
 
 const props = defineProps<{
   link: Link;
 }>();
 
+const emit = defineEmits<{
+  deleted: [link: Link];
+}>();
+
 const router = useRouter();
 const toast = useToast();
+const isConfirmOpen = ref(false);
+const isDeleting = ref(false);
 
 const isDeleted = computed(() => props.link.status === "deleted");
 const isBlocked = computed(() => props.link.status === "blocked");
-const canCopy = computed(() => !isDeleted.value);
-const canOpenAnalytics = computed(() => !isDeleted.value);
 const canEdit = computed(() => !isDeleted.value && !isBlocked.value);
-const statusActionLabel = computed(() => (props.link.status === "active" ? "Деактивировать" : "Активировать"));
+const canExport = computed(() => !isDeleted.value);
+const canDelete = computed(() => !isDeleted.value);
 
 const unavailableByStatusText = "Действие недоступно для этого статуса.";
-const statusPlaceholderText = "Будет доступно после FR-028.";
-const deletePlaceholderText = "Будет доступно после FR-029.";
+const editTitle = computed(() => (canEdit.value ? "Edit link" : unavailableByStatusText));
+const exportTitle = computed(() => (canExport.value ? "Export link data" : unavailableByStatusText));
+const deleteTitle = computed(() => (canDelete.value ? "Delete link" : unavailableByStatusText));
 
-const copyTitle = computed(() => (canCopy.value ? "Скопировать short URL" : unavailableByStatusText));
-const analyticsTitle = computed(() => (canOpenAnalytics.value ? "Открыть аналитику" : unavailableByStatusText));
-const editTitle = computed(() => (canEdit.value ? "Редактировать ссылку" : unavailableByStatusText));
-const statusTitle = computed(() => (isDeleted.value || isBlocked.value ? unavailableByStatusText : statusPlaceholderText));
-const deleteTitle = computed(() => (isDeleted.value ? unavailableByStatusText : deletePlaceholderText));
-
-const fallbackCopy = (value: string) => {
-  const textarea = document.createElement("textarea");
-  textarea.value = value;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.top = "0";
-  textarea.style.left = "0";
-  textarea.style.opacity = "0";
-
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-
-  const isCopied = document.execCommand("copy");
-  document.body.removeChild(textarea);
-
-  if (!isCopied) {
-    throw new Error("Copy command failed");
-  }
-};
-
-const copyShortUrl = async () => {
-  if (!canCopy.value) {
-    return;
-  }
-
-  const shortUrl = props.link.shortUrl || props.link.code;
-
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(shortUrl);
-    } else {
-      fallbackCopy(shortUrl);
-    }
-
-    toast.success("Short URL скопирован.");
-  } catch {
-    toast.error("Не удалось скопировать short URL. Скопируйте его вручную.");
-  }
-};
-
-const openAnalytics = () => {
-  if (canOpenAnalytics.value) {
-    void router.push(getLinkDetailsPath(props.link.id));
-  }
-};
+const escapeCsvValue = (value: string | number | null | undefined) => `"${String(value ?? "").replaceAll('"', '""')}"`;
 
 const editLink = () => {
   if (canEdit.value) {
     void router.push(getLinkEditPath(props.link.id));
   }
 };
+
+const exportLink = () => {
+  if (!canExport.value) {
+    return;
+  }
+
+  const headers = ["id", "shortUrl", "targetUrl", "createdAt", "status", "totalClicks"];
+  const values = [
+    props.link.id,
+    props.link.shortUrl || props.link.code,
+    props.link.targetUrl,
+    props.link.createdAt,
+    props.link.status,
+    props.link.totalClicks,
+  ];
+  const csv = `${headers.join(",")}\n${values.map(escapeCsvValue).join(",")}\n`;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `tracklink-${props.link.code}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+
+  toast.success("Данные ссылки экспортированы.");
+};
+
+const requestDelete = () => {
+  if (canDelete.value) {
+    isConfirmOpen.value = true;
+  }
+};
+
+const isApiClientError = (error: unknown): error is ApiClientError =>
+  error instanceof Error && error.name === "ApiClientError" && "status" in error;
+
+const getDeleteErrorMessage = (error: unknown) => {
+  if (isApiClientError(error)) {
+    if (error.status === 404) {
+      return "Ссылка уже удалена или недоступна.";
+    }
+
+    if (error.status === 401) {
+      return "Сессия недействительна. Войдите заново и повторите удаление.";
+    }
+  }
+
+  return "Не удалось удалить ссылку. Повторите попытку позже.";
+};
+
+const confirmDelete = async () => {
+  if (isDeleting.value) {
+    return;
+  }
+
+  isDeleting.value = true;
+
+  try {
+    await deleteLink(props.link.id);
+    isConfirmOpen.value = false;
+    toast.success("Ссылка удалена.");
+    emit("deleted", props.link);
+  } catch (error: unknown) {
+    toast.error(getDeleteErrorMessage(error));
+  } finally {
+    isDeleting.value = false;
+  }
+};
 </script>
 
 <template>
-  <div class="link-row-actions">
-    <UiButton variant="ghost" size="sm" type="button" :disabled="!canCopy" :title="copyTitle" @click="copyShortUrl">
-      Копировать
+  <div class="link-row-actions" @click.stop>
+    <UiButton variant="primary" size="sm" type="button" :disabled="!canEdit" :title="editTitle" @click="editLink">
+      Edit
+    </UiButton>
+    <UiButton variant="primary" size="sm" type="button" :disabled="!canExport" :title="exportTitle" @click="exportLink">
+      Export
     </UiButton>
     <UiButton
-      variant="ghost"
+      variant="danger"
       size="sm"
       type="button"
-      :disabled="!canOpenAnalytics"
-      :title="analyticsTitle"
-      @click="openAnalytics"
+      :disabled="!canDelete"
+      :loading="isDeleting"
+      :title="deleteTitle"
+      @click="requestDelete"
     >
-      Аналитика
+      Delete
     </UiButton>
-    <UiButton variant="ghost" size="sm" type="button" :disabled="!canEdit" :title="editTitle" @click="editLink">
-      Изменить
-    </UiButton>
-    <UiButton variant="ghost" size="sm" type="button" disabled :title="statusTitle">
-      {{ statusActionLabel }}
-    </UiButton>
-    <UiButton variant="danger" size="sm" type="button" disabled :title="deleteTitle">
-      Удалить
-    </UiButton>
+
+    <UiConfirmDialog
+      v-model="isConfirmOpen"
+      title="Удалить ссылку?"
+      description="Ссылка будет удалена из списка. Это действие нельзя отменить."
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      :loading="isDeleting"
+      @confirm="confirmDelete"
+    />
   </div>
 </template>
 
