@@ -1,11 +1,11 @@
 import { computed, readonly, ref } from "vue";
-import { getCurrentUser, type User } from "@/api/auth";
+import { getCurrentUser } from "@/api/auth";
 import type { ApiClientError } from "@/api/types";
-
-type SessionStatus = "idle" | "loading" | "authenticated" | "guest";
+import type { SessionError, SessionStatus, User } from "./session.types";
 
 const user = ref<User | null>(null);
 const status = ref<SessionStatus>("idle");
+const sessionError = ref<SessionError | null>(null);
 let pendingUserRequest: Promise<User | null> | null = null;
 
 const isApiClientError = (error: unknown): error is ApiClientError =>
@@ -14,12 +14,59 @@ const isApiClientError = (error: unknown): error is ApiClientError =>
 const applyUser = (nextUser: User | null) => {
   user.value = nextUser;
   status.value = nextUser ? "authenticated" : "guest";
+  sessionError.value = null;
 
   return nextUser;
 };
 
+const normalizeSessionError = (error: unknown): SessionError => {
+  if (isApiClientError(error)) {
+    if (error.status === 401) {
+      return {
+        status: error.status,
+        code: "unauthorized",
+        message: "Session expired. Sign in again.",
+      };
+    }
+
+    if (error.status === 403) {
+      return {
+        status: error.status,
+        code: "forbidden",
+        message: "You do not have permission to access this page.",
+      };
+    }
+
+    return {
+      status: error.status,
+      code: error.code || "session_check_failed",
+      message: "Could not verify your session. Try again later.",
+    };
+  }
+
+  return {
+    status: null,
+    code: "network_error",
+    message: "Could not verify your session. Check your connection and try again.",
+  };
+};
+
+const applySessionError = (error: unknown) => {
+  const nextError = normalizeSessionError(error);
+
+  user.value = null;
+  status.value = "guest";
+  sessionError.value = nextError.status === 401 ? null : nextError;
+
+  return null;
+};
+
 const loadCurrentUser = async (options: { force?: boolean } = {}) => {
-  if (!options.force && status.value !== "idle") {
+  if (!options.force && status.value === "authenticated") {
+    return user.value;
+  }
+
+  if (!options.force && status.value === "guest" && !sessionError.value) {
     return user.value;
   }
 
@@ -28,17 +75,10 @@ const loadCurrentUser = async (options: { force?: boolean } = {}) => {
   }
 
   status.value = "loading";
+  sessionError.value = null;
   pendingUserRequest = getCurrentUser()
     .then((currentUser) => applyUser(currentUser))
-    .catch((error: unknown) => {
-      applyUser(null);
-
-      if (isApiClientError(error) && error.status === 401) {
-        return null;
-      }
-
-      return null;
-    })
+    .catch((error: unknown) => applySessionError(error))
     .finally(() => {
       pendingUserRequest = null;
     });
@@ -55,7 +95,9 @@ const clearSession = () => {
 export const useSession = () => ({
   user: readonly(user),
   status: readonly(status),
+  sessionError: readonly(sessionError),
   isLoading: computed(() => status.value === "loading"),
+  isSessionLoading: computed(() => status.value === "loading"),
   isAuthenticated: computed(() => status.value === "authenticated"),
   isAdmin: computed(() => user.value?.role === "admin"),
   loadCurrentUser,
