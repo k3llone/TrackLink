@@ -11,7 +11,6 @@ const props = withDefaults(
     loading?: boolean;
     errorMessage?: string;
     q?: string;
-    status?: LinkStatus | "";
   }>(),
   {
     links: () => [],
@@ -19,12 +18,11 @@ const props = withDefaults(
     loading: false,
     errorMessage: "",
     q: "",
-    status: "",
   },
 );
 
 const emit = defineEmits<{
-  "filters-change": [filters: { q: string; status: LinkStatus | "" }];
+  "filters-change": [filters: { q: string }];
   "page-change": [page: number];
   retry: [];
 }>();
@@ -35,14 +33,6 @@ const columns: UiTableColumn[] = [
   { key: "createdAt", label: "Создана", width: "14%" },
   { key: "status", label: "Статус", width: "13%" },
   { key: "totalClicks", label: "Переходы", width: "10%", align: "right" },
-];
-
-const statusOptions: Array<{ value: LinkStatus | ""; label: string }> = [
-  { value: "", label: "Все статусы" },
-  { value: "active", label: "Активные" },
-  { value: "inactive", label: "Неактивные" },
-  { value: "blocked", label: "Заблокированные" },
-  { value: "deleted", label: "Удаленные" },
 ];
 
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
@@ -63,7 +53,7 @@ const statusLabels: Record<LinkStatus, string> = {
 const currentPage = computed(() => props.pagination?.page ?? 1);
 const totalPages = computed(() => props.pagination?.totalPages ?? 0);
 const totalItems = computed(() => props.pagination?.totalItems ?? 0);
-const hasFilters = computed(() => Boolean(props.q.trim() || props.status));
+const hasFilters = computed(() => Boolean(props.q.trim()));
 const showPagination = computed(() => Boolean(props.pagination && totalItems.value > 0));
 const canGoPrevious = computed(() => currentPage.value > 1 && !props.loading);
 const canGoNext = computed(() => currentPage.value < totalPages.value && !props.loading);
@@ -89,12 +79,7 @@ const formatNumber = (value: number) => numberFormatter.format(value);
 const getShortUrl = (link: Link) => link.shortUrl || link.code;
 
 const onSearchChange = (q: string) => {
-  emit("filters-change", { q, status: props.status });
-};
-
-const onStatusChange = (event: Event) => {
-  const target = event.target as HTMLSelectElement;
-  emit("filters-change", { q: props.q, status: target.value as LinkStatus | "" });
+  emit("filters-change", { q });
 };
 
 const goToPreviousPage = () => {
@@ -129,15 +114,6 @@ const onRetry = () => emit("retry");
           autocomplete="off"
           @update:model-value="onSearchChange"
         />
-
-        <label class="links-table__status-filter">
-          <span class="links-table__status-label">Статус</span>
-          <select class="links-table__status-select" :value="status" @change="onStatusChange">
-            <option v-for="option in statusOptions" :key="option.value || 'all'" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
       </div>
     </header>
 
@@ -261,40 +237,6 @@ const onRetry = () => emit("retry");
 
 .links-table__search {
   min-width: 260px;
-}
-
-.links-table__status-filter {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 180px;
-  color: var(--tl-color-text);
-}
-
-.links-table__status-label {
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.links-table__status-select {
-  min-height: 44px;
-  border: 1px solid #ddd7e8;
-  border-radius: var(--tl-radius-md);
-  background: var(--tl-color-surface-muted);
-  color: var(--tl-color-text);
-  font-family: var(--tl-font-family);
-  font-size: 14px;
-  padding: 0 12px;
-}
-
-.links-table__status-select:focus {
-  border-color: var(--tl-color-primary);
-  box-shadow: 0 0 0 2px rgb(109 74 255 / 18%);
-  outline: 0;
-}
-
-.links-table__status-select:disabled {
-  opacity: 0.65;
 }
 
 .links-table__url {

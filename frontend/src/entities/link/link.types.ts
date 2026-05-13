@@ -30,5 +30,4 @@ export interface ListLinksParams {
   page?: number;
   pageSize?: number;
   q?: string;
-  status?: LinkStatus | "";
 }

@@ -4,7 +4,7 @@ import { useRouter } from "vue-router";
 import { getDashboard, type DashboardResponse } from "@/api/analytics";
 import { listLinks } from "@/api/links";
 import type { ApiClientError } from "@/api/types";
-import type { Link, LinkStatus, Pagination } from "@/entities/link/link.types";
+import type { Link, Pagination } from "@/entities/link/link.types";
 import { DashboardSummary } from "@/widgets/dashboard";
 import { LinksTable } from "@/widgets/links-table";
 import { ROUTES } from "@/shared/lib/routes/paths";
@@ -22,7 +22,6 @@ const linksErrorMessage = ref("");
 const linksPage = ref(1);
 const linksPageSize = 20;
 const linksQ = ref("");
-const linksStatus = ref<LinkStatus | "">("");
 let linksRequestId = 0;
 
 const emptySummary: DashboardResponse = {
@@ -73,7 +72,7 @@ const loadDashboard = async () => {
 const getLinksErrorMessage = (error: unknown) => {
   if (isApiClientError(error)) {
     if (error.status === 400) {
-      return "Проверьте параметры поиска и фильтра списка ссылок.";
+      return "Проверьте параметры поиска списка ссылок.";
     }
 
     if (error.status === 401) {
@@ -95,7 +94,6 @@ const loadLinks = async () => {
       page: linksPage.value,
       pageSize: linksPageSize,
       q: linksQ.value,
-      status: linksStatus.value,
     });
 
     if (requestId !== linksRequestId) {
@@ -119,9 +117,8 @@ const loadLinks = async () => {
   }
 };
 
-const onLinkFiltersChange = (filters: { q: string; status: LinkStatus | "" }) => {
+const onLinkFiltersChange = (filters: { q: string }) => {
   linksQ.value = filters.q;
-  linksStatus.value = filters.status;
   linksPage.value = 1;
   void loadLinks();
 };
@@ -188,7 +185,6 @@ onMounted(() => {
         :loading="isLinksLoading"
         :error-message="linksErrorMessage"
         :q="linksQ"
-        :status="linksStatus"
         @filters-change="onLinkFiltersChange"
         @page-change="onLinksPageChange"
         @retry="loadLinks"

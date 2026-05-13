@@ -18,10 +18,6 @@ export const listLinks = (params: ListLinksParams = {}) => {
     searchParams.set("q", query);
   }
 
-  if (params.status) {
-    searchParams.set("status", params.status);
-  }
-
   const queryString = searchParams.toString();
   return http.get<LinkListResponse>(`/links${queryString ? `?${queryString}` : ""}`);
 };
