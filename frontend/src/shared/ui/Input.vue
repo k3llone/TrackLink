@@ -12,6 +12,7 @@ const props = withDefaults(
     hint?: string;
     error?: string;
     disabled?: boolean;
+    readonly?: boolean;
     loading?: boolean;
     required?: boolean;
     autocomplete?: string;
@@ -24,6 +25,7 @@ const props = withDefaults(
     hint: "",
     error: "",
     disabled: false,
+    readonly: false,
     loading: false,
     required: false,
     autocomplete: "off",
@@ -67,6 +69,7 @@ const onFocus = (event: FocusEvent) => emit("focus", event);
         :type="type"
         :placeholder="placeholder"
         :disabled="isDisabled"
+        :readonly="readonly"
         :required="required"
         :autocomplete="autocomplete"
         @blur="onBlur"
