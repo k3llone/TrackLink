@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
-import type { DashboardLink } from "@/api/analytics";
+import type { Link } from "@/entities/link/link.types";
 import { useToast } from "@/shared/composables/useToast";
 import { getLinkDetailsPath, getLinkEditPath } from "@/shared/lib/routes/paths";
 import { UiButton, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
 
 defineProps<{
-  links: DashboardLink[];
+  links: Link[];
 }>();
 
 const router = useRouter();
@@ -28,7 +28,7 @@ const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
 
 const numberFormatter = new Intl.NumberFormat("ru-RU");
 
-const statusLabels: Record<DashboardLink["status"], string> = {
+const statusLabels: Record<Link["status"], string> = {
   active: "Активна",
   inactive: "Неактивна",
   blocked: "Заблокирована",

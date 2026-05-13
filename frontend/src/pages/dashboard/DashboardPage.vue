@@ -2,16 +2,27 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { getDashboard, type DashboardResponse } from "@/api/analytics";
+import { listLinks } from "@/api/links";
 import type { ApiClientError } from "@/api/types";
-import { DashboardSummary, RecentLinks } from "@/widgets/dashboard";
+import type { Link, Pagination } from "@/entities/link/link.types";
+import { DashboardSummary } from "@/widgets/dashboard";
+import { LinksTable } from "@/widgets/links-table";
 import { ROUTES } from "@/shared/lib/routes/paths";
 import { UiButton, UiPageHeader, UiPageState } from "@/shared/ui";
 
 const router = useRouter();
 
 const dashboard = ref<DashboardResponse | null>(null);
-const isLoading = ref(false);
-const errorMessage = ref("");
+const isDashboardLoading = ref(false);
+const dashboardErrorMessage = ref("");
+const links = ref<Link[]>([]);
+const linksPagination = ref<Pagination | null>(null);
+const isLinksLoading = ref(false);
+const linksErrorMessage = ref("");
+const linksPage = ref(1);
+const linksPageSize = 20;
+const linksQ = ref("");
+let linksRequestId = 0;
 
 const emptySummary: DashboardResponse = {
   totalLinks: 0,
@@ -22,7 +33,6 @@ const emptySummary: DashboardResponse = {
 };
 
 const summary = computed(() => dashboard.value ?? emptySummary);
-const isEmpty = computed(() => !isLoading.value && !errorMessage.value && dashboard.value?.totalLinks === 0);
 
 const isApiClientError = (error: unknown): error is ApiClientError =>
   error instanceof Error && error.name === "ApiClientError" && "status" in error;
@@ -42,21 +52,80 @@ const getDashboardErrorMessage = (error: unknown) => {
 };
 
 const loadDashboard = async () => {
-  if (isLoading.value) {
+  if (isDashboardLoading.value) {
     return;
   }
 
-  isLoading.value = true;
-  errorMessage.value = "";
+  isDashboardLoading.value = true;
+  dashboardErrorMessage.value = "";
 
   try {
     dashboard.value = await getDashboard();
   } catch (error: unknown) {
     dashboard.value = null;
-    errorMessage.value = getDashboardErrorMessage(error);
+    dashboardErrorMessage.value = getDashboardErrorMessage(error);
   } finally {
-    isLoading.value = false;
+    isDashboardLoading.value = false;
   }
+};
+
+const getLinksErrorMessage = (error: unknown) => {
+  if (isApiClientError(error)) {
+    if (error.status === 400) {
+      return "Проверьте параметры поиска списка ссылок.";
+    }
+
+    if (error.status === 401) {
+      return "Сессия недействительна. Войдите заново, чтобы открыть список ссылок.";
+    }
+  }
+
+  return "Не удалось загрузить список ссылок. Проверьте соединение и повторите попытку.";
+};
+
+const loadLinks = async () => {
+  const requestId = ++linksRequestId;
+
+  isLinksLoading.value = true;
+  linksErrorMessage.value = "";
+
+  try {
+    const response = await listLinks({
+      page: linksPage.value,
+      pageSize: linksPageSize,
+      q: linksQ.value,
+    });
+
+    if (requestId !== linksRequestId) {
+      return;
+    }
+
+    links.value = response.items;
+    linksPagination.value = response.pagination;
+  } catch (error: unknown) {
+    if (requestId !== linksRequestId) {
+      return;
+    }
+
+    links.value = [];
+    linksPagination.value = null;
+    linksErrorMessage.value = getLinksErrorMessage(error);
+  } finally {
+    if (requestId === linksRequestId) {
+      isLinksLoading.value = false;
+    }
+  }
+};
+
+const onLinkFiltersChange = (filters: { q: string }) => {
+  linksQ.value = filters.q;
+  linksPage.value = 1;
+  void loadLinks();
+};
+
+const onLinksPageChange = (page: number) => {
+  linksPage.value = page;
+  void loadLinks();
 };
 
 const goToCreateLink = () => {
@@ -65,6 +134,7 @@ const goToCreateLink = () => {
 
 onMounted(() => {
   void loadDashboard();
+  void loadLinks();
 });
 </script>
 
@@ -73,37 +143,28 @@ onMounted(() => {
     <UiPageHeader title="Dashboard" subtitle="Ключевые показатели аккаунта и последние созданные ссылки." />
 
     <DashboardSummary
-      v-if="isLoading || dashboard"
+      v-if="isDashboardLoading || dashboard"
       :total-links="summary.totalLinks"
       :active-links="summary.activeLinks"
       :total-clicks="summary.totalClicks"
       :clicks-last24h="summary.clicksLast24h"
-      :loading="isLoading"
+      :loading="isDashboardLoading"
     />
 
     <UiPageState
-      v-if="isLoading && !dashboard"
+      v-if="isDashboardLoading && !dashboard"
       type="loading"
       title="Загружаем dashboard"
       description="Получаем метрики и последние ссылки аккаунта."
     />
 
     <UiPageState
-      v-else-if="errorMessage"
+      v-else-if="dashboardErrorMessage"
       type="error"
       title="Dashboard недоступен"
-      :description="errorMessage"
+      :description="dashboardErrorMessage"
       action-text="Повторить"
       @action="loadDashboard"
-    />
-
-    <UiPageState
-      v-else-if="isEmpty"
-      type="empty"
-      title="Ссылок пока нет"
-      description="Создайте первую короткую ссылку, чтобы здесь появились метрики и последние действия."
-      action-text="Создать первую ссылку"
-      @action="goToCreateLink"
     />
 
     <div v-else-if="dashboard" class="dashboard-page__content">
@@ -118,7 +179,16 @@ onMounted(() => {
         <UiButton type="button" @click="goToCreateLink">Создать ссылку</UiButton>
       </section>
 
-      <RecentLinks :links="dashboard.recentLinks" />
+      <LinksTable
+        :links="links"
+        :pagination="linksPagination"
+        :loading="isLinksLoading"
+        :error-message="linksErrorMessage"
+        :q="linksQ"
+        @filters-change="onLinkFiltersChange"
+        @page-change="onLinksPageChange"
+        @retry="loadLinks"
+      />
     </div>
   </section>
 </template>
