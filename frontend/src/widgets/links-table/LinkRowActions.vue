@@ -146,7 +146,17 @@ const confirmDelete = async () => {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: max-content;
+  white-space: nowrap;
+}
+
+.link-row-actions :deep(.ui-button) {
+  min-height: 28px;
+  border-radius: 7px;
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1;
 }
 </style>
