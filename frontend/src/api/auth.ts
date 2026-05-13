@@ -1,13 +1,7 @@
 import { http } from "@/api/http";
+import type { User } from "@/entities/session/session.types";
 
-export type UserRole = "customer" | "admin";
-
-export interface User {
-  id: string;
-  email: string;
-  role: UserRole;
-  createdAt: string;
-}
+export type { User, UserRole } from "@/entities/session/session.types";
 
 export interface RegisterRequest {
   email: string;
