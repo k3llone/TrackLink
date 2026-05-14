@@ -1,5 +1,5 @@
 import { http } from "@/api/http";
-import type { LinkListResponse, ListLinksParams } from "@/entities/link/link.types";
+import type { CreateLinkRequest, Link, LinkListResponse, ListLinksParams } from "@/entities/link/link.types";
 
 const appendNumberParam = (searchParams: URLSearchParams, key: string, value?: number) => {
   if (value !== undefined) {
@@ -21,3 +21,7 @@ export const listLinks = (params: ListLinksParams = {}) => {
   const queryString = searchParams.toString();
   return http.get<LinkListResponse>(`/links${queryString ? `?${queryString}` : ""}`);
 };
+
+export const createLink = (payload: CreateLinkRequest) => http.post<Link>("/links", payload);
+
+export const deleteLink = (linkId: string) => http.delete<void>(`/links/${encodeURIComponent(linkId)}`);

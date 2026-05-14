@@ -26,6 +26,11 @@ export interface LinkListResponse {
   pagination: Pagination;
 }
 
+export interface CreateLinkRequest {
+  targetUrl: string;
+  customAlias?: string | null;
+}
+
 export interface ListLinksParams {
   page?: number;
   pageSize?: number;

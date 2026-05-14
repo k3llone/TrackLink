@@ -8,20 +8,32 @@ export type UiTableColumn = {
   align?: "left" | "center" | "right";
 };
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     columns?: UiTableColumn[];
     rows?: unknown[];
     loading?: boolean;
     emptyText?: string;
+    rowClickable?: boolean;
   }>(),
   {
     columns: () => [],
     rows: () => [],
     loading: false,
     emptyText: "No data yet",
+    rowClickable: false,
   },
 );
+
+const emit = defineEmits<{
+  "row-click": [row: unknown, rowIndex: number];
+}>();
+
+const onRowClick = (row: unknown, rowIndex: number) => {
+  if (props.rowClickable) {
+    emit("row-click", row, rowIndex);
+  }
+};
 </script>
 
 <template>
@@ -53,7 +65,16 @@ withDefaults(
 
           <tbody>
             <slot name="body" :rows="rows" :columns="columns">
-              <tr v-for="(row, rowIndex) in rows" :key="rowIndex">
+              <tr
+                v-for="(row, rowIndex) in rows"
+                :key="rowIndex"
+                :class="{ 'is-clickable': rowClickable }"
+                :tabindex="rowClickable ? 0 : undefined"
+                :role="rowClickable ? 'button' : undefined"
+                @click="onRowClick(row, rowIndex)"
+                @keydown.enter.prevent="onRowClick(row, rowIndex)"
+                @keydown.space.prevent="onRowClick(row, rowIndex)"
+              >
                 <slot name="row" :row="row" :row-index="rowIndex">
                   <td
                     v-for="column in columns"
@@ -104,6 +125,21 @@ withDefaults(
   padding: 14px 12px;
   font-size: 14px;
   color: var(--tl-color-text);
+  transition: background-color 0.2s ease;
+}
+
+.ui-table__native tbody tr.is-clickable {
+  cursor: pointer;
+}
+
+.ui-table__native tbody tr.is-clickable:hover td,
+.ui-table__native tbody tr.is-clickable:focus-visible td {
+  background: #e8e2f4;
+}
+
+.ui-table__native tbody tr.is-clickable:focus-visible {
+  outline: 2px solid rgb(109 74 255 / 35%);
+  outline-offset: 2px;
 }
 
 .ui-table__native tbody td:first-child {

@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useRouter } from "vue-router";
 import type { Link, LinkStatus, Pagination } from "@/entities/link/link.types";
+import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiButton, UiInput, UiPageState, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
 import LinkRowActions from "./LinkRowActions.vue";
+
+const router = useRouter();
 
 const props = withDefaults(
   defineProps<{
@@ -24,6 +28,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   "filters-change": [filters: { q: string }];
   "page-change": [page: number];
+  "link-deleted": [link: Link];
   retry: [];
 }>();
 
@@ -94,6 +99,12 @@ const goToNextPage = () => {
   }
 };
 
+const openLinkAnalytics = (row: unknown) => {
+  const link = row as Link;
+  void router.push(getLinkDetailsPath(link.id));
+};
+
+const onLinkDeleted = (link: Link) => emit("link-deleted", link);
 const onRetry = () => emit("retry");
 </script>
 
@@ -126,7 +137,15 @@ const onRetry = () => emit("retry");
       @action="onRetry"
     />
 
-    <UiTable v-else :columns="columns" :rows="links" :loading="loading" empty-text="Ссылок пока нет.">
+    <UiTable
+      v-else
+      :columns="columns"
+      :rows="links"
+      :loading="loading"
+      empty-text="Ссылок пока нет."
+      row-clickable
+      @row-click="openLinkAnalytics"
+    >
       <template #loading>
         <UiPageState
           type="loading"
@@ -151,6 +170,7 @@ const onRetry = () => emit("retry");
           target="_blank"
           rel="noreferrer"
           :title="getShortUrl(row)"
+          @click.stop
         >
           {{ getShortUrl(row) }}
         </a>
@@ -162,6 +182,7 @@ const onRetry = () => emit("retry");
           target="_blank"
           rel="noreferrer"
           :title="row.targetUrl"
+          @click.stop
         >
           {{ row.targetUrl }}
         </a>
@@ -176,7 +197,7 @@ const onRetry = () => emit("retry");
       </template>
 
       <template #actions="{ row }">
-        <LinkRowActions :link="row" />
+        <LinkRowActions :link="row" @deleted="onLinkDeleted" />
       </template>
     </UiTable>
 
