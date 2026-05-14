@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { getLinkAnalytics, type LinkAnalyticsResponse } from "@/api/analytics";
-import type { ApiClientError } from "@/api/types";
+import { computed } from "vue";
+import { useRouter } from "vue-router";
 import type { Link, LinkStatus, Pagination } from "@/entities/link/link.types";
+import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiButton, UiInput, UiPageState, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
-import LinkAnalyticsModal from "./LinkAnalyticsModal.vue";
 import LinkRowActions from "./LinkRowActions.vue";
+
+const router = useRouter();
 
 const props = withDefaults(
   defineProps<{
@@ -81,12 +82,6 @@ const formatDate = (value: string) => {
 const formatNumber = (value: number) => numberFormatter.format(value);
 
 const getShortUrl = (link: Link) => link.shortUrl || link.code;
-const selectedLink = ref<Link | null>(null);
-const selectedLinkAnalytics = ref<LinkAnalyticsResponse | null>(null);
-const isAnalyticsOpen = ref(false);
-const isAnalyticsLoading = ref(false);
-const analyticsErrorMessage = ref("");
-let analyticsRequestId = 0;
 
 const onSearchChange = (q: string) => {
   emit("filters-change", { q });
@@ -104,64 +99,9 @@ const goToNextPage = () => {
   }
 };
 
-const isApiClientError = (error: unknown): error is ApiClientError =>
-  error instanceof Error && error.name === "ApiClientError" && "status" in error;
-
-const getAnalyticsErrorMessage = (error: unknown) => {
-  if (isApiClientError(error)) {
-    if (error.status === 401) {
-      return "Сессия недействительна. Войдите заново, чтобы открыть аналитику.";
-    }
-
-    if (error.status === 404) {
-      return "Ссылка не найдена или недоступна для просмотра.";
-    }
-  }
-
-  return "Не удалось загрузить аналитику ссылки. Повторите попытку позже.";
-};
-
-const loadSelectedLinkAnalytics = async () => {
-  if (!selectedLink.value) {
-    return;
-  }
-
-  const requestId = ++analyticsRequestId;
-  isAnalyticsLoading.value = true;
-  analyticsErrorMessage.value = "";
-
-  try {
-    const response = await getLinkAnalytics(selectedLink.value.id);
-
-    if (requestId !== analyticsRequestId) {
-      return;
-    }
-
-    selectedLinkAnalytics.value = response;
-  } catch (error: unknown) {
-    if (requestId !== analyticsRequestId) {
-      return;
-    }
-
-    selectedLinkAnalytics.value = null;
-    analyticsErrorMessage.value = getAnalyticsErrorMessage(error);
-  } finally {
-    if (requestId === analyticsRequestId) {
-      isAnalyticsLoading.value = false;
-    }
-  }
-};
-
 const openLinkAnalytics = (row: unknown) => {
   const link = row as Link;
-  selectedLink.value = link;
-  selectedLinkAnalytics.value = null;
-  isAnalyticsOpen.value = true;
-  void loadSelectedLinkAnalytics();
-};
-
-const onAnalyticsRetry = () => {
-  void loadSelectedLinkAnalytics();
+  void router.push(getLinkDetailsPath(link.id));
 };
 
 const onLinkDeleted = (link: Link) => emit("link-deleted", link);
@@ -275,15 +215,6 @@ const onRetry = () => emit("retry");
         </UiButton>
       </div>
     </footer>
-
-    <LinkAnalyticsModal
-      v-model="isAnalyticsOpen"
-      :link="selectedLink"
-      :analytics="selectedLinkAnalytics"
-      :loading="isAnalyticsLoading"
-      :error-message="analyticsErrorMessage"
-      @retry="onAnalyticsRetry"
-    />
   </section>
 </template>
 

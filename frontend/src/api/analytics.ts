@@ -14,10 +14,26 @@ export interface LinkAnalyticsResponse {
   series: TimeSeriesPoint[];
 }
 
+export interface ClickEvent {
+  id: string;
+  linkId: string;
+  clickedAt: string;
+  referrer?: string | null;
+  userAgent?: string | null;
+}
+
+export interface RecentClicksResponse {
+  items: ClickEvent[];
+}
+
 export interface GetLinkAnalyticsParams {
   from?: string;
   to?: string;
   groupBy?: "hour" | "day";
+}
+
+export interface ListRecentClicksParams {
+  limit?: number;
 }
 
 export interface DashboardResponse {
@@ -48,5 +64,18 @@ export const getLinkAnalytics = (linkId: string, params: GetLinkAnalyticsParams 
   const queryString = searchParams.toString();
   return http.get<LinkAnalyticsResponse>(
     `/links/${encodeURIComponent(linkId)}/analytics${queryString ? `?${queryString}` : ""}`,
+  );
+};
+
+export const listRecentClicks = (linkId: string, params: ListRecentClicksParams = {}) => {
+  const searchParams = new URLSearchParams();
+
+  if (params.limit !== undefined) {
+    searchParams.set("limit", String(params.limit));
+  }
+
+  const queryString = searchParams.toString();
+  return http.get<RecentClicksResponse>(
+    `/links/${encodeURIComponent(linkId)}/clicks${queryString ? `?${queryString}` : ""}`,
   );
 };
