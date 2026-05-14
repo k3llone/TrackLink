@@ -57,8 +57,6 @@ const isApiClientError = (error: unknown): error is ApiClientError =>
 
 const totalClicks = computed(() => numberFormatter.format(analytics.value?.totalClicks ?? 0));
 const clicksLast24h = computed(() => numberFormatter.format(analytics.value?.clicksLast24h ?? 0));
-const maxSeriesClicks = computed(() => Math.max(...(analytics.value?.series.map((point) => point.clicks) ?? [0]), 1));
-const hasSeries = computed(() => Boolean(analytics.value?.series.length));
 
 const lastClickedAt = computed(() => {
   if (!analytics.value?.lastClickedAt) {
@@ -87,8 +85,6 @@ const formatUserAgent = (value?: string | null) => {
   const userAgent = value?.trim();
   return userAgent || "Не определен";
 };
-
-const getBarWidth = (clicks: number) => `${Math.max(6, Math.round((clicks / maxSeriesClicks.value) * 100))}%`;
 
 const getErrorMessage = (error: unknown) => {
   if (isApiClientError(error)) {
@@ -204,7 +200,7 @@ onMounted(() => {
       v-if="isLoading && !analytics"
       type="loading"
       title="Загружаем аналитику"
-      description="Получаем метрики, динамику трафика и последние переходы."
+      description="Получаем основные метрики и последние переходы."
     />
 
     <UiPageState
@@ -232,27 +228,15 @@ onMounted(() => {
         <UiStatCard title="Последний переход" :value="lastClickedAt" />
       </section>
 
-      <section class="link-analytics-page__traffic" aria-labelledby="link-analytics-traffic-title">
+      <section class="link-analytics-page__statistics" aria-labelledby="link-analytics-statistics-title">
         <div class="link-analytics-page__section-header">
-          <h2 id="link-analytics-traffic-title" class="link-analytics-page__section-title">Трафик</h2>
-          <UiButton variant="secondary" size="sm" :loading="isLoading" @click="loadAnalytics">Обновить</UiButton>
-        </div>
-
-        <div v-if="hasSeries" class="link-analytics-page__chart">
-          <div v-for="point in analytics.series" :key="point.periodStart" class="link-analytics-page__bar-row">
-            <span class="link-analytics-page__bar-label">{{ formatDateTime(point.periodStart) }}</span>
-            <div class="link-analytics-page__bar-track" aria-hidden="true">
-              <span class="link-analytics-page__bar" :style="{ width: getBarWidth(point.clicks) }" />
-            </div>
-            <strong class="link-analytics-page__bar-value">{{ numberFormatter.format(point.clicks) }}</strong>
-          </div>
+          <h2 id="link-analytics-statistics-title" class="link-analytics-page__section-title">Статистика</h2>
         </div>
 
         <UiPageState
-          v-else
           type="empty"
-          title="Трафика пока нет"
-          description="Когда по ссылке появятся переходы, здесь отобразится динамика по дням."
+          title="Графики статистики появятся позже"
+          description="Здесь будут графики по переходам, динамике и другим данным ссылки."
         />
       </section>
 
@@ -311,7 +295,7 @@ onMounted(() => {
   gap: 14px;
 }
 
-.link-analytics-page__traffic,
+.link-analytics-page__statistics,
 .link-analytics-page__clicks {
   display: flex;
   flex-direction: column;
@@ -334,42 +318,6 @@ onMounted(() => {
   line-height: 1.25;
 }
 
-.link-analytics-page__chart {
-  display: grid;
-  gap: 10px;
-}
-
-.link-analytics-page__bar-row {
-  display: grid;
-  grid-template-columns: minmax(150px, 190px) minmax(160px, 1fr) 56px;
-  align-items: center;
-  gap: 12px;
-  color: var(--tl-color-text);
-  font-size: 14px;
-}
-
-.link-analytics-page__bar-label {
-  color: var(--tl-color-text-muted);
-}
-
-.link-analytics-page__bar-track {
-  height: 14px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--tl-color-surface-muted);
-}
-
-.link-analytics-page__bar {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--tl-color-primary);
-}
-
-.link-analytics-page__bar-value {
-  text-align: right;
-}
-
 .link-analytics-page__referrer,
 .link-analytics-page__user-agent {
   display: inline-block;
@@ -389,14 +337,9 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .link-analytics-page__section-header,
-  .link-analytics-page__bar-row {
+  .link-analytics-page__section-header {
     align-items: stretch;
-    grid-template-columns: 1fr;
-  }
-
-  .link-analytics-page__bar-value {
-    text-align: left;
+    flex-direction: column;
   }
 
   .link-analytics-page__referrer,
