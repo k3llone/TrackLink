@@ -5,7 +5,7 @@ import { deleteLink } from "@/api/links";
 import type { ApiClientError } from "@/api/types";
 import type { Link } from "@/entities/link/link.types";
 import { useToast } from "@/shared/composables/useToast";
-import { getLinkEditPath } from "@/shared/lib/routes/paths";
+import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiButton, UiConfirmDialog } from "@/shared/ui";
 
 const props = defineProps<{
@@ -22,21 +22,20 @@ const isConfirmOpen = ref(false);
 const isDeleting = ref(false);
 
 const isDeleted = computed(() => props.link.status === "deleted");
-const isBlocked = computed(() => props.link.status === "blocked");
-const canEdit = computed(() => !isDeleted.value && !isBlocked.value);
+const canOpenAnalytics = computed(() => !isDeleted.value);
 const canExport = computed(() => !isDeleted.value);
 const canDelete = computed(() => !isDeleted.value);
 
 const unavailableByStatusText = "Действие недоступно для этого статуса.";
-const editTitle = computed(() => (canEdit.value ? "Edit link" : unavailableByStatusText));
+const analyticsTitle = computed(() => (canOpenAnalytics.value ? "Open link analytics" : unavailableByStatusText));
 const exportTitle = computed(() => (canExport.value ? "Export link data" : unavailableByStatusText));
 const deleteTitle = computed(() => (canDelete.value ? "Delete link" : unavailableByStatusText));
 
 const escapeCsvValue = (value: string | number | null | undefined) => `"${String(value ?? "").replaceAll('"', '""')}"`;
 
-const editLink = () => {
-  if (canEdit.value) {
-    void router.push(getLinkEditPath(props.link.id));
+const openAnalytics = () => {
+  if (canOpenAnalytics.value) {
+    void router.push(getLinkDetailsPath(props.link.id));
   }
 };
 
@@ -111,8 +110,15 @@ const confirmDelete = async () => {
 
 <template>
   <div class="link-row-actions" @click.stop>
-    <UiButton variant="primary" size="sm" type="button" :disabled="!canEdit" :title="editTitle" @click="editLink">
-      Edit
+    <UiButton
+      variant="primary"
+      size="sm"
+      type="button"
+      :disabled="!canOpenAnalytics"
+      :title="analyticsTitle"
+      @click="openAnalytics"
+    >
+      Analytics
     </UiButton>
     <UiButton variant="primary" size="sm" type="button" :disabled="!canExport" :title="exportTitle" @click="exportLink">
       Export

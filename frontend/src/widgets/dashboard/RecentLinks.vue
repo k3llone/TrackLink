@@ -2,7 +2,7 @@
 import { useRouter } from "vue-router";
 import type { Link } from "@/entities/link/link.types";
 import { useToast } from "@/shared/composables/useToast";
-import { getLinkDetailsPath, getLinkEditPath } from "@/shared/lib/routes/paths";
+import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiButton, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
 
 defineProps<{
@@ -85,10 +85,6 @@ const copyShortUrl = async (shortUrl: string) => {
 const openAnalytics = (linkId: string) => {
   void router.push(getLinkDetailsPath(linkId));
 };
-
-const editLink = (linkId: string) => {
-  void router.push(getLinkEditPath(linkId));
-};
 </script>
 
 <template>
@@ -137,7 +133,6 @@ const editLink = (linkId: string) => {
         <div class="recent-links__actions">
           <UiButton variant="ghost" size="sm" type="button" @click="copyShortUrl(row.shortUrl)">Копировать</UiButton>
           <UiButton variant="ghost" size="sm" type="button" @click="openAnalytics(row.id)">Аналитика</UiButton>
-          <UiButton variant="ghost" size="sm" type="button" @click="editLink(row.id)">Изменить</UiButton>
         </div>
       </template>
     </UiTable>
