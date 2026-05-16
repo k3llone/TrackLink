@@ -128,11 +128,6 @@ const onLinksPageChange = (page: number) => {
   void loadLinks();
 };
 
-const onLinkDeleted = () => {
-  void loadDashboard();
-  void loadLinks();
-};
-
 const goToCreateLink = () => {
   void router.push(ROUTES.linkCreate);
 };
@@ -192,7 +187,6 @@ onMounted(() => {
         :q="linksQ"
         @filters-change="onLinkFiltersChange"
         @page-change="onLinksPageChange"
-        @link-deleted="onLinkDeleted"
         @retry="loadLinks"
       />
     </div>
