@@ -10,6 +10,13 @@ import {
 import { findOwnLinkById } from "@/api/links";
 import type { ApiClientError } from "@/api/types";
 import type { Link } from "@/entities/link/link.types";
+import {
+  AnalyticsPeriodPicker,
+  DEFAULT_ANALYTICS_PERIOD,
+  getAnalyticsPeriodOption,
+  getAnalyticsPeriodParams,
+  type AnalyticsPeriodValue,
+} from "@/features/analytics-period";
 import CopyShortUrlButton from "@/features/link-actions/CopyShortUrlButton.vue";
 import DeleteLinkButton from "@/features/link-actions/DeleteLinkButton.vue";
 import UpdateLinkStatusButton from "@/features/link-actions/UpdateLinkStatusButton.vue";
@@ -21,6 +28,7 @@ import {
   UiTable,
   type UiTableColumn,
 } from "@/shared/ui";
+import { ClicksTimeChart } from "@/widgets/analytics-chart";
 
 const route = useRoute();
 const router = useRouter();
@@ -34,7 +42,11 @@ const analytics = ref<LinkAnalyticsResponse | null>(null);
 const link = ref<Link | null>(null);
 const recentClicks = ref<ClickEvent[]>([]);
 const isLoading = ref(false);
+const isAnalyticsLoading = ref(false);
 const errorMessage = ref("");
+const analyticsErrorMessage = ref("");
+const selectedPeriod = ref<AnalyticsPeriodValue>(DEFAULT_ANALYTICS_PERIOD);
+let analyticsRequestId = 0;
 
 const clicksColumns: UiTableColumn[] = [
   { key: "clickedAt", label: "Время", width: "24%" },
@@ -54,7 +66,8 @@ const dateTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
 const isApiClientError = (error: unknown): error is ApiClientError =>
   error instanceof Error && error.name === "ApiClientError" && "status" in error;
 
-const totalClicks = computed(() => numberFormatter.format(analytics.value?.totalClicks ?? 0));
+const currentGroupBy = computed(() => getAnalyticsPeriodOption(selectedPeriod.value).groupBy);
+const totalClicks = computed(() => numberFormatter.format(analytics.value?.totalClicks ?? link.value?.totalClicks ?? 0));
 const clicksLast24h = computed(() => numberFormatter.format(analytics.value?.clicksLast24h ?? 0));
 const pageSubtitle = computed(() => {
   if (link.value) {
@@ -65,11 +78,13 @@ const pageSubtitle = computed(() => {
 });
 
 const lastClickedAt = computed(() => {
-  if (!analytics.value?.lastClickedAt) {
+  const value = analytics.value?.lastClickedAt ?? link.value?.lastClickedAt;
+
+  if (!value) {
     return "Переходов еще не было";
   }
 
-  return formatDateTime(analytics.value.lastClickedAt);
+  return formatDateTime(value);
 });
 
 const formatDateTime = (value: string) => {
@@ -108,6 +123,37 @@ const getErrorMessage = (error: unknown) => {
 
 const getLinkNotFoundMessage = () => "Ссылка не найдена или недоступна для управления.";
 
+const loadAnalyticsSeries = async () => {
+  if (!linkId.value || isAnalyticsLoading.value) {
+    return;
+  }
+
+  const requestId = ++analyticsRequestId;
+  isAnalyticsLoading.value = true;
+  analyticsErrorMessage.value = "";
+
+  try {
+    const response = await getLinkAnalytics(linkId.value, getAnalyticsPeriodParams(selectedPeriod.value));
+
+    if (requestId !== analyticsRequestId) {
+      return;
+    }
+
+    analytics.value = response;
+  } catch (error: unknown) {
+    if (requestId !== analyticsRequestId) {
+      return;
+    }
+
+    analytics.value = null;
+    analyticsErrorMessage.value = getErrorMessage(error);
+  } finally {
+    if (requestId === analyticsRequestId) {
+      isAnalyticsLoading.value = false;
+    }
+  }
+};
+
 const loadAnalytics = async () => {
   if (!linkId.value || isLoading.value) {
     return;
@@ -115,11 +161,11 @@ const loadAnalytics = async () => {
 
   isLoading.value = true;
   errorMessage.value = "";
+  analyticsErrorMessage.value = "";
 
   try {
-    const [linkResponse, analyticsResponse, clicksResponse] = await Promise.all([
+    const [linkResponse, clicksResponse] = await Promise.all([
       findOwnLinkById(linkId.value),
-      getLinkAnalytics(linkId.value, { groupBy: "day" }),
       listRecentClicks(linkId.value, { limit: 20 }),
     ]);
 
@@ -132,8 +178,8 @@ const loadAnalytics = async () => {
     }
 
     link.value = linkResponse;
-    analytics.value = analyticsResponse;
     recentClicks.value = clicksResponse.items;
+    await loadAnalyticsSeries();
   } catch (error: unknown) {
     link.value = null;
     analytics.value = null;
@@ -150,6 +196,11 @@ const onLinkUpdated = (updatedLink: Link) => {
 
 const onLinkDeleted = async () => {
   await router.push(ROUTES.dashboard);
+};
+
+const onAnalyticsPeriodChange = (period: AnalyticsPeriodValue) => {
+  selectedPeriod.value = period;
+  void loadAnalyticsSeries();
 };
 
 onMounted(() => {
@@ -181,7 +232,7 @@ onMounted(() => {
     </UiPageHeader>
 
     <UiPageState
-      v-if="isLoading && !analytics"
+      v-if="isLoading && !link"
       type="loading"
       title="Загружаем аналитику"
       description="Получаем основные метрики и последние переходы."
@@ -205,7 +256,7 @@ onMounted(() => {
       action-text="Вернуться на dashboard"
     />
 
-    <div v-else-if="analytics" class="link-analytics-page__content">
+    <div v-else-if="link" class="link-analytics-page__content">
       <section class="link-analytics-page__summary" aria-label="Основные метрики">
         <UiStatCard title="Всего переходов" :value="totalClicks" />
         <UiStatCard title="Переходы за 24 часа" :value="clicksLast24h" />
@@ -215,12 +266,19 @@ onMounted(() => {
       <section class="link-analytics-page__statistics" aria-labelledby="link-analytics-statistics-title">
         <div class="link-analytics-page__section-header">
           <h2 id="link-analytics-statistics-title" class="link-analytics-page__section-title">Статистика</h2>
+          <AnalyticsPeriodPicker
+            v-model="selectedPeriod"
+            :loading="isAnalyticsLoading"
+            @change="onAnalyticsPeriodChange"
+          />
         </div>
 
-        <UiPageState
-          type="empty"
-          title="Графики статистики появятся позже"
-          description="Здесь будут графики по переходам, динамике и другим данным ссылки."
+        <ClicksTimeChart
+          :series="analytics?.series ?? []"
+          :group-by="currentGroupBy"
+          :loading="isAnalyticsLoading"
+          :error="analyticsErrorMessage"
+          @retry="loadAnalyticsSeries"
         />
       </section>
 
