@@ -15,12 +15,14 @@ const props = withDefaults(
     pagination?: Pagination | null;
     loading?: boolean;
     errorMessage?: string;
+    hasSearch?: boolean;
   }>(),
   {
     links: () => [],
     pagination: null,
     loading: false,
     errorMessage: "",
+    hasSearch: false,
   },
 );
 
@@ -61,6 +63,10 @@ const showPagination = computed(() => Boolean(props.pagination && totalItems.val
 const canGoPrevious = computed(() => currentPage.value > 1 && !props.loading);
 const canGoNext = computed(() => currentPage.value < totalPages.value && !props.loading);
 const totalItemsLabel = computed(() => numberFormatter.format(totalItems.value));
+const emptyStateTitle = computed(() => (props.hasSearch ? "Ссылки не найдены" : "Ссылок пока нет"));
+const emptyStateDescription = computed(() =>
+  props.hasSearch ? "По запросу ничего не найдено." : "Административный список ссылок пуст.",
+);
 
 const formatDate = (value: string) => {
   const date = new Date(value);
@@ -142,8 +148,8 @@ const onLinkUpdated = (link: AdminLink) => emit("link-updated", link);
       <template #empty>
         <UiPageState
           type="empty"
-          title="Ссылок пока нет"
-          description="Административный список ссылок пуст."
+          :title="emptyStateTitle"
+          :description="emptyStateDescription"
         />
       </template>
 

@@ -24,9 +24,14 @@ const appendNumberParam = (searchParams: URLSearchParams, key: string, value?: n
 
 export const listAdminLinks = (params: ListAdminLinksParams = {}) => {
   const searchParams = new URLSearchParams();
+  const query = params.q?.trim();
 
   appendNumberParam(searchParams, "page", params.page);
   appendNumberParam(searchParams, "pageSize", params.pageSize);
+
+  if (query) {
+    searchParams.set("q", query);
+  }
 
   const queryString = searchParams.toString();
   return http.get<AdminLinkListResponse>(`/admin/links${queryString ? `?${queryString}` : ""}`);

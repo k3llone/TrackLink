@@ -4,7 +4,7 @@ import { listAdminLinks, type AdminLink } from "@/api/admin";
 import type { ApiClientError } from "@/api/types";
 import type { Pagination } from "@/entities/link/link.types";
 import { useSession } from "@/entities/session/useSession";
-import { AdminLinksTable } from "@/features/admin-link-moderation";
+import { AdminLinksSearch, AdminLinksTable } from "@/features/admin-link-moderation";
 import { UiPageHeader, UiPageState } from "@/shared/ui";
 
 const session = useSession();
@@ -16,10 +16,12 @@ const linksErrorMessage = ref("");
 const accessErrorMessage = ref("");
 const linksPage = ref(1);
 const linksPageSize = 20;
+const linksQ = ref("");
 let linksRequestId = 0;
 
 const isCheckingAccess = computed(() => session.isSessionLoading.value && !session.isAdmin.value);
 const isForbidden = computed(() => !isCheckingAccess.value && !session.isAdmin.value);
+const hasLinkSearch = computed(() => Boolean(linksQ.value.trim()));
 
 const isApiClientError = (error: unknown): error is ApiClientError =>
   error instanceof Error && error.name === "ApiClientError" && "status" in error;
@@ -30,6 +32,10 @@ const isAccessError = (error: unknown) =>
 const getLinksErrorMessage = (error: unknown) => {
   if (isAccessError(error)) {
     return "У вас нет доступа к административной панели.";
+  }
+
+  if (isApiClientError(error) && error.status === 400) {
+    return "Проверьте параметры поиска ссылок.";
   }
 
   return "Не удалось загрузить список ссылок.";
@@ -50,6 +56,7 @@ const loadLinks = async () => {
     const response = await listAdminLinks({
       page: linksPage.value,
       pageSize: linksPageSize,
+      q: linksQ.value,
     });
 
     if (requestId !== linksRequestId) {
@@ -89,6 +96,12 @@ const initialize = async () => {
 
 const onLinksPageChange = (page: number) => {
   linksPage.value = page;
+  void loadLinks();
+};
+
+const onLinksSearchChange = (q: string) => {
+  linksQ.value = q;
+  linksPage.value = 1;
   void loadLinks();
 };
 
@@ -132,15 +145,20 @@ onMounted(() => {
         subtitle="Просмотр коротких ссылок и административная блокировка."
       />
 
-      <AdminLinksTable
-        :links="links"
-        :pagination="linksPagination"
-        :loading="isLinksLoading"
-        :error-message="linksErrorMessage"
-        @page-change="onLinksPageChange"
-        @link-updated="onLinkUpdated"
-        @retry="loadLinks"
-      />
+      <div class="admin-page__content">
+        <AdminLinksSearch :q="linksQ" :loading="isLinksLoading" @change="onLinksSearchChange" />
+
+        <AdminLinksTable
+          :links="links"
+          :pagination="linksPagination"
+          :loading="isLinksLoading"
+          :error-message="linksErrorMessage"
+          :has-search="hasLinkSearch"
+          @page-change="onLinksPageChange"
+          @link-updated="onLinkUpdated"
+          @retry="loadLinks"
+        />
+      </div>
     </template>
   </section>
 </template>
@@ -148,5 +166,11 @@ onMounted(() => {
 <style scoped>
 .admin-page {
   width: 100%;
+}
+
+.admin-page__content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 </style>
