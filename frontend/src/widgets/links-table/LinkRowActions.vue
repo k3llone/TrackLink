@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
 import type { Link } from "@/entities/link/link.types";
+import DeleteLinkButton from "@/features/link-actions/DeleteLinkButton.vue";
 import UpdateLinkStatusButton from "@/features/link-actions/UpdateLinkStatusButton.vue";
 import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiButton } from "@/shared/ui";
@@ -10,6 +11,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  deleted: [linkId: string];
   updated: [link: Link];
 }>();
 
@@ -22,12 +24,17 @@ const openAnalytics = () => {
 const onUpdated = (link: Link) => {
   emit("updated", link);
 };
+
+const onDeleted = (linkId: string) => {
+  emit("deleted", linkId);
+};
 </script>
 
 <template>
   <div class="link-row-actions">
     <UpdateLinkStatusButton :link="link" @updated="onUpdated" />
     <UiButton variant="ghost" size="sm" type="button" @click.stop="openAnalytics">Аналитика</UiButton>
+    <DeleteLinkButton :link-id="link.id" :short-url="link.shortUrl" @deleted="onDeleted" />
   </div>
 </template>
 

@@ -27,6 +27,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   "filters-change": [filters: { q: string }];
+  "link-deleted": [linkId: string];
   "link-updated": [link: Link];
   "page-change": [page: number];
   retry: [];
@@ -89,6 +90,10 @@ const onSearchChange = (q: string) => {
 
 const onLinkUpdated = (link: Link) => {
   emit("link-updated", link);
+};
+
+const onLinkDeleted = (linkId: string) => {
+  emit("link-deleted", linkId);
 };
 
 const goToPreviousPage = () => {
@@ -200,7 +205,7 @@ const onRetry = () => emit("retry");
       </template>
 
       <template #actions="{ row }">
-        <LinkRowActions :link="row" @updated="onLinkUpdated" />
+        <LinkRowActions :link="row" @deleted="onLinkDeleted" @updated="onLinkUpdated" />
       </template>
     </UiTable>
 

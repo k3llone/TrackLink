@@ -128,6 +128,11 @@ const onLinkUpdated = (updatedLink: Link) => {
   void loadDashboard();
 };
 
+const onLinkDeleted = () => {
+  void loadLinks();
+  void loadDashboard();
+};
+
 const onLinksPageChange = (page: number) => {
   linksPage.value = page;
   void loadLinks();
@@ -191,6 +196,7 @@ onMounted(() => {
         :error-message="linksErrorMessage"
         :q="linksQ"
         @filters-change="onLinkFiltersChange"
+        @link-deleted="onLinkDeleted"
         @link-updated="onLinkUpdated"
         @page-change="onLinksPageChange"
         @retry="loadLinks"
