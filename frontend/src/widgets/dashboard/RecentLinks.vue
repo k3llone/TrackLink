@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { useRouter } from "vue-router";
 import type { Link } from "@/entities/link/link.types";
-import { useToast } from "@/shared/composables/useToast";
-import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
-import { UiButton, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
+import { UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
+import LinkRowActions from "@/widgets/links-table/LinkRowActions.vue";
 
 defineProps<{
   links: Link[];
 }>();
 
-const router = useRouter();
-const toast = useToast();
+const emit = defineEmits<{
+  deleted: [linkId: string];
+  updated: [link: Link];
+}>();
 
 const columns: UiTableColumn[] = [
   { key: "shortUrl", label: "Short URL", width: "24%" },
@@ -47,43 +47,12 @@ const formatDate = (value: string) => {
 
 const formatNumber = (value: number) => numberFormatter.format(value);
 
-const fallbackCopy = (value: string) => {
-  const textarea = document.createElement("textarea");
-  textarea.value = value;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.top = "0";
-  textarea.style.left = "0";
-  textarea.style.opacity = "0";
-
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-
-  const isCopied = document.execCommand("copy");
-  document.body.removeChild(textarea);
-
-  if (!isCopied) {
-    throw new Error("Copy command failed");
-  }
+const onDeleted = (linkId: string) => {
+  emit("deleted", linkId);
 };
 
-const copyShortUrl = async (shortUrl: string) => {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(shortUrl);
-    } else {
-      fallbackCopy(shortUrl);
-    }
-
-    toast.success("Short URL скопирован.");
-  } catch {
-    toast.error("Не удалось скопировать short URL. Скопируйте его вручную.");
-  }
-};
-
-const openAnalytics = (linkId: string) => {
-  void router.push(getLinkDetailsPath(linkId));
+const onUpdated = (link: Link) => {
+  emit("updated", link);
 };
 </script>
 
@@ -130,10 +99,7 @@ const openAnalytics = (linkId: string) => {
       </template>
 
       <template #actions="{ row }">
-        <div class="recent-links__actions">
-          <UiButton variant="ghost" size="sm" type="button" @click="copyShortUrl(row.shortUrl)">Копировать</UiButton>
-          <UiButton variant="ghost" size="sm" type="button" @click="openAnalytics(row.id)">Аналитика</UiButton>
-        </div>
+        <LinkRowActions :link="row" @deleted="onDeleted" @updated="onUpdated" />
       </template>
     </UiTable>
   </section>
@@ -183,14 +149,6 @@ const openAnalytics = (linkId: string) => {
 .recent-links__url--short {
   color: var(--tl-color-primary);
   font-weight: 700;
-}
-
-.recent-links__actions {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  flex-wrap: wrap;
 }
 
 @media (max-width: 767px) {

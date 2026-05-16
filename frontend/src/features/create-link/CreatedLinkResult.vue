@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import type { Link, LinkStatus } from "@/entities/link/link.types";
-import { useToast } from "@/shared/composables/useToast";
+import CopyShortUrlButton from "@/features/link-actions/CopyShortUrlButton.vue";
 import { getLinkDetailsPath, ROUTES } from "@/shared/lib/routes/paths";
 import { UiButton, UiStatusBadge } from "@/shared/ui";
 
@@ -15,7 +15,6 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
-const toast = useToast();
 const numberFormatter = new Intl.NumberFormat("ru-RU");
 
 const statusLabels: Record<LinkStatus, string> = {
@@ -28,41 +27,6 @@ const statusLabels: Record<LinkStatus, string> = {
 const shortUrl = computed(() => props.link.shortUrl || props.link.code);
 const totalClicksLabel = computed(() => numberFormatter.format(props.link.totalClicks));
 const shouldShowTotalClicks = computed(() => typeof props.link.totalClicks === "number");
-
-const fallbackCopy = (value: string) => {
-  const textarea = document.createElement("textarea");
-  textarea.value = value;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.top = "0";
-  textarea.style.left = "0";
-  textarea.style.opacity = "0";
-
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-
-  const isCopied = document.execCommand("copy");
-  document.body.removeChild(textarea);
-
-  if (!isCopied) {
-    throw new Error("Copy command failed");
-  }
-};
-
-const copyShortUrl = async () => {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(shortUrl.value);
-    } else {
-      fallbackCopy(shortUrl.value);
-    }
-
-    toast.success("Short URL скопирован.");
-  } catch {
-    toast.error("Не удалось скопировать short URL. Скопируйте его вручную.");
-  }
-};
 
 const openAnalytics = () => {
   void router.push(getLinkDetailsPath(props.link.id));
@@ -91,7 +55,7 @@ const goToDashboard = () => {
       <a class="created-link-result__url" :href="shortUrl" target="_blank" rel="noreferrer" :title="shortUrl">
         {{ shortUrl }}
       </a>
-      <UiButton variant="secondary" type="button" @click="copyShortUrl">Копировать</UiButton>
+      <CopyShortUrlButton :short-url="shortUrl" variant="secondary" size="md" />
     </div>
 
     <dl class="created-link-result__details">
