@@ -123,6 +123,11 @@ const onLinkFiltersChange = (filters: { q: string }) => {
   void loadLinks();
 };
 
+const onLinkUpdated = (updatedLink: Link) => {
+  links.value = links.value.map((link) => (link.id === updatedLink.id ? updatedLink : link));
+  void loadDashboard();
+};
+
 const onLinksPageChange = (page: number) => {
   linksPage.value = page;
   void loadLinks();
@@ -186,6 +191,7 @@ onMounted(() => {
         :error-message="linksErrorMessage"
         :q="linksQ"
         @filters-change="onLinkFiltersChange"
+        @link-updated="onLinkUpdated"
         @page-change="onLinksPageChange"
         @retry="loadLinks"
       />

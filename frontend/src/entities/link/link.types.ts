@@ -1,4 +1,5 @@
 export type LinkStatus = "active" | "inactive" | "blocked" | "deleted";
+export type UpdateLinkStatus = Extract<LinkStatus, "active" | "inactive">;
 
 export interface Link {
   id: string;
@@ -31,8 +32,13 @@ export interface CreateLinkRequest {
   customAlias?: string | null;
 }
 
+export interface UpdateLinkStatusRequest {
+  status: UpdateLinkStatus;
+}
+
 export interface ListLinksParams {
   page?: number;
   pageSize?: number;
   q?: string;
+  status?: LinkStatus;
 }

@@ -1,5 +1,11 @@
 import { http } from "@/api/http";
-import type { CreateLinkRequest, Link, LinkListResponse, ListLinksParams } from "@/entities/link/link.types";
+import type {
+  CreateLinkRequest,
+  Link,
+  LinkListResponse,
+  ListLinksParams,
+  UpdateLinkStatusRequest,
+} from "@/entities/link/link.types";
 
 const appendNumberParam = (searchParams: URLSearchParams, key: string, value?: number) => {
   if (value !== undefined) {
@@ -18,10 +24,17 @@ export const listLinks = (params: ListLinksParams = {}) => {
     searchParams.set("q", query);
   }
 
+  if (params.status) {
+    searchParams.set("status", params.status);
+  }
+
   const queryString = searchParams.toString();
   return http.get<LinkListResponse>(`/links${queryString ? `?${queryString}` : ""}`);
 };
 
 export const createLink = (payload: CreateLinkRequest) => http.post<Link>("/links", payload);
+
+export const updateLinkStatus = (linkId: string, payload: UpdateLinkStatusRequest) =>
+  http.patch<Link>(`/links/${encodeURIComponent(linkId)}/status`, payload);
 
 export const deleteLink = (linkId: string) => http.delete<void>(`/links/${encodeURIComponent(linkId)}`);

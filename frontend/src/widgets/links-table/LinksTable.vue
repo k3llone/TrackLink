@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import type { Link, LinkStatus, Pagination } from "@/entities/link/link.types";
 import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiButton, UiInput, UiPageState, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
+import LinkRowActions from "./LinkRowActions.vue";
 
 const router = useRouter();
 
@@ -26,6 +27,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   "filters-change": [filters: { q: string }];
+  "link-updated": [link: Link];
   "page-change": [page: number];
   retry: [];
 }>();
@@ -83,6 +85,10 @@ const getShortUrl = (link: Link) => link.shortUrl || link.code;
 
 const onSearchChange = (q: string) => {
   emit("filters-change", { q });
+};
+
+const onLinkUpdated = (link: Link) => {
+  emit("link-updated", link);
 };
 
 const goToPreviousPage = () => {
@@ -193,6 +199,9 @@ const onRetry = () => emit("retry");
         <span v-else>{{ row[column.key] }}</span>
       </template>
 
+      <template #actions="{ row }">
+        <LinkRowActions :link="row" @updated="onLinkUpdated" />
+      </template>
     </UiTable>
 
     <footer v-if="showPagination" class="links-table__pagination" aria-label="Пагинация списка ссылок">
