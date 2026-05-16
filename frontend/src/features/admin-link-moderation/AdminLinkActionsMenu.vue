@@ -1,20 +1,19 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
 import type { AdminLink } from "@/api/admin";
-import { getAdminLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiButton } from "@/shared/ui";
 import BlockLinkButton from "./BlockLinkButton.vue";
+import DeactivateLinkButton from "./DeactivateLinkButton.vue";
 
-const props = defineProps<{
+defineProps<{
   link: AdminLink;
 }>();
 
 const emit = defineEmits<{
   blocked: [link: AdminLink];
+  deactivated: [link: AdminLink];
 }>();
 
-const router = useRouter();
 const root = ref<HTMLElement | null>(null);
 const isOpen = ref(false);
 
@@ -38,14 +37,14 @@ const onDocumentKeydown = (event: KeyboardEvent) => {
   }
 };
 
-const openAnalytics = () => {
-  close();
-  void router.push(getAdminLinkDetailsPath(props.link.id));
-};
-
 const onBlocked = (link: AdminLink) => {
   close();
   emit("blocked", link);
+};
+
+const onDeactivated = (link: AdminLink) => {
+  close();
+  emit("deactivated", link);
 };
 
 onMounted(() => {
@@ -74,14 +73,13 @@ onBeforeUnmount(() => {
     </UiButton>
 
     <div v-if="isOpen" class="admin-link-actions-menu__menu" role="menu">
-      <button
-        type="button"
-        class="admin-link-actions-menu__item"
-        role="menuitem"
-        @click.stop="openAnalytics"
-      >
-        Открыть аналитику
-      </button>
+      <DeactivateLinkButton
+        :link="link"
+        variant="ghost"
+        size="sm"
+        full-width
+        @deactivated="onDeactivated"
+      />
 
       <BlockLinkButton
         :link="link"
@@ -119,27 +117,6 @@ onBeforeUnmount(() => {
   border-radius: var(--tl-radius-md);
   background: var(--tl-color-white);
   box-shadow: 0 12px 28px rgb(20 16 38 / 16%);
-}
-
-.admin-link-actions-menu__item {
-  width: 100%;
-  min-height: 34px;
-  border: 0;
-  border-radius: var(--tl-radius-md);
-  background: transparent;
-  color: var(--tl-color-text);
-  cursor: pointer;
-  font-family: var(--tl-font-family);
-  font-size: 13px;
-  font-weight: 600;
-  text-align: left;
-  padding: 8px 12px;
-}
-
-.admin-link-actions-menu__item:hover,
-.admin-link-actions-menu__item:focus-visible {
-  background: var(--tl-color-surface-muted);
-  outline: 0;
 }
 
 </style>

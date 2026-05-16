@@ -39,3 +39,6 @@ export const listAdminLinks = (params: ListAdminLinksParams = {}) => {
 
 export const blockAdminLink = (linkId: string) =>
   http.patch<AdminLink>(`/admin/links/${encodeURIComponent(linkId)}/block`);
+
+export const deactivateAdminLink = (linkId: string) =>
+  http.patch<AdminLink>(`/admin/links/${encodeURIComponent(linkId)}/deactivate`);

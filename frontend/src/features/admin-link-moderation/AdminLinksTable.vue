@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useRouter } from "vue-router";
 import type { AdminLink } from "@/api/admin";
 import type { LinkStatus, Pagination } from "@/entities/link/link.types";
-import { getAdminLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiButton, UiPageState, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
 import AdminLinkActionsMenu from "./AdminLinkActionsMenu.vue";
-
-const router = useRouter();
 
 const props = withDefaults(
   defineProps<{
@@ -83,15 +79,6 @@ const formatNumber = (value: number) => numberFormatter.format(value);
 const getShortUrl = (link: AdminLink) => link.shortUrl || link.customAlias || link.code;
 const getOwner = (link: AdminLink) => link.ownerEmail?.trim() || link.ownerId;
 
-const openLinkAnalyticsById = (linkId: string) => {
-  void router.push(getAdminLinkDetailsPath(linkId));
-};
-
-const openLinkAnalytics = (row: unknown) => {
-  const link = row as AdminLink;
-  openLinkAnalyticsById(link.id);
-};
-
 const goToPreviousPage = () => {
   if (canGoPrevious.value) {
     emit("page-change", currentPage.value - 1);
@@ -114,7 +101,7 @@ const onLinkUpdated = (link: AdminLink) => emit("link-updated", link);
       <div class="admin-links-table__title-group">
         <h2 id="admin-links-table-title" class="admin-links-table__title">Ссылки</h2>
         <p class="admin-links-table__subtitle">
-          Административный список коротких ссылок для просмотра и блокировки.
+          Административный список коротких ссылок для модерации.
         </p>
       </div>
     </header>
@@ -134,8 +121,6 @@ const onLinkUpdated = (link: AdminLink) => emit("link-updated", link);
       :rows="links"
       :loading="loading"
       empty-text="Ссылок пока нет."
-      row-clickable
-      @row-click="openLinkAnalytics"
     >
       <template #loading>
         <UiPageState
@@ -154,15 +139,13 @@ const onLinkUpdated = (link: AdminLink) => emit("link-updated", link);
       </template>
 
       <template #cell="{ row, column }">
-        <a
+        <span
           v-if="column.key === 'shortUrl'"
           class="admin-links-table__url admin-links-table__url--short"
-          :href="getAdminLinkDetailsPath(row.id)"
           :title="getShortUrl(row)"
-          @click.prevent.stop="openLinkAnalyticsById(row.id)"
         >
           {{ getShortUrl(row) }}
-        </a>
+        </span>
 
         <a
           v-else-if="column.key === 'targetUrl'"
@@ -190,7 +173,7 @@ const onLinkUpdated = (link: AdminLink) => emit("link-updated", link);
       </template>
 
       <template #actions="{ row }">
-        <AdminLinkActionsMenu :link="row" @blocked="onLinkUpdated" />
+        <AdminLinkActionsMenu :link="row" @blocked="onLinkUpdated" @deactivated="onLinkUpdated" />
       </template>
     </UiTable>
 

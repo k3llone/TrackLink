@@ -80,6 +80,7 @@ func newRouter(log *slog.Logger, deps Deps, registerAdminRoutes func(chi.Router)
 	adminV1.Use(authMiddleware.RequireAdmin)
 	adminV1.Get("/links", adminHandler.ListLinks)
 	adminV1.Patch("/links/{linkId}/block", adminHandler.BlockLink)
+	adminV1.Patch("/links/{linkId}/deactivate", adminHandler.DeactivateLink)
 	if registerAdminRoutes != nil {
 		registerAdminRoutes(adminV1)
 	}
