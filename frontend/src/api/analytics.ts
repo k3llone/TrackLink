@@ -1,10 +1,8 @@
 import { http } from "@/api/http";
+import type { AnalyticsGroupBy, TimeSeriesPoint } from "@/entities/analytics/analytics.types";
 import type { Link } from "@/entities/link/link.types";
 
-export interface TimeSeriesPoint {
-  periodStart: string;
-  clicks: number;
-}
+export type { AnalyticsGroupBy, TimeSeriesPoint } from "@/entities/analytics/analytics.types";
 
 export interface LinkAnalyticsResponse {
   linkId: string;
@@ -29,7 +27,7 @@ export interface RecentClicksResponse {
 export interface GetLinkAnalyticsParams {
   from?: string;
   to?: string;
-  groupBy?: "hour" | "day";
+  groupBy?: AnalyticsGroupBy;
 }
 
 export interface ListRecentClicksParams {
