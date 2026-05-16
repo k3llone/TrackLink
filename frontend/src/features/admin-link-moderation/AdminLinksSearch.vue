@@ -5,11 +5,9 @@ import { UiInput } from "@/shared/ui";
 const props = withDefaults(
   defineProps<{
     q?: string;
-    loading?: boolean;
   }>(),
   {
     q: "",
-    loading: false,
   },
 );
 
@@ -61,7 +59,6 @@ onBeforeUnmount(clearPendingChange);
       label="Поиск"
       placeholder="UUID, short code или alias"
       autocomplete="off"
-      :loading="loading"
     />
   </section>
 </template>

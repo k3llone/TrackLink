@@ -146,7 +146,7 @@ onMounted(() => {
       />
 
       <div class="admin-page__content">
-        <AdminLinksSearch :q="linksQ" :loading="isLinksLoading" @change="onLinksSearchChange" />
+        <AdminLinksSearch :q="linksQ" @change="onLinksSearchChange" />
 
         <AdminLinksTable
           :links="links"
