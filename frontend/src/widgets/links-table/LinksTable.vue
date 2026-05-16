@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { useRouter } from "vue-router";
 import type { Link, LinkStatus, Pagination } from "@/entities/link/link.types";
 import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
-import { UiButton, UiInput, UiPageState, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
+import { UiButton, UiPageState, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
 
 const router = useRouter();
 
@@ -13,19 +13,18 @@ const props = withDefaults(
     pagination?: Pagination | null;
     loading?: boolean;
     errorMessage?: string;
-    q?: string;
+    hasFilters?: boolean;
   }>(),
   {
     links: () => [],
     pagination: null,
     loading: false,
     errorMessage: "",
-    q: "",
+    hasFilters: false,
   },
 );
 
 const emit = defineEmits<{
-  "filters-change": [filters: { q: string }];
   "page-change": [page: number];
   retry: [];
 }>();
@@ -56,7 +55,7 @@ const statusLabels: Record<LinkStatus, string> = {
 const currentPage = computed(() => props.pagination?.page ?? 1);
 const totalPages = computed(() => props.pagination?.totalPages ?? 0);
 const totalItems = computed(() => props.pagination?.totalItems ?? 0);
-const hasFilters = computed(() => Boolean(props.q.trim()));
+const hasFilters = computed(() => props.hasFilters);
 const showPagination = computed(() => Boolean(props.pagination && totalItems.value > 0));
 const canGoPrevious = computed(() => currentPage.value > 1 && !props.loading);
 const canGoNext = computed(() => currentPage.value < totalPages.value && !props.loading);
@@ -81,10 +80,6 @@ const formatNumber = (value: number) => numberFormatter.format(value);
 
 const getShortUrl = (link: Link) => link.shortUrl || link.code;
 
-const onSearchChange = (q: string) => {
-  emit("filters-change", { q });
-};
-
 const goToPreviousPage = () => {
   if (canGoPrevious.value) {
     emit("page-change", currentPage.value - 1);
@@ -102,6 +97,10 @@ const openLinkAnalytics = (row: unknown) => {
   void router.push(getLinkDetailsPath(link.id));
 };
 
+const openLinkAnalyticsById = (linkId: string) => {
+  void router.push(getLinkDetailsPath(linkId));
+};
+
 const onRetry = () => emit("retry");
 </script>
 
@@ -111,17 +110,6 @@ const onRetry = () => emit("retry");
       <div class="links-table__title-group">
         <h2 id="links-table-title" class="links-table__title">Ссылки</h2>
         <p class="links-table__subtitle">Список коротких ссылок аккаунта.</p>
-      </div>
-
-      <div class="links-table__filters" aria-label="Фильтры списка ссылок">
-        <UiInput
-          :model-value="q"
-          class="links-table__search"
-          type="search"
-          placeholder="Поиск по ссылке или URL"
-          autocomplete="off"
-          @update:model-value="onSearchChange"
-        />
       </div>
     </header>
 
@@ -163,11 +151,9 @@ const onRetry = () => emit("retry");
         <a
           v-if="column.key === 'shortUrl'"
           class="links-table__url links-table__url--short"
-          :href="getShortUrl(row)"
-          target="_blank"
-          rel="noreferrer"
+          :href="getLinkDetailsPath(row.id)"
           :title="getShortUrl(row)"
-          @click.stop
+          @click.prevent.stop="openLinkAnalyticsById(row.id)"
         >
           {{ getShortUrl(row) }}
         </a>
@@ -192,7 +178,6 @@ const onRetry = () => emit("retry");
 
         <span v-else>{{ row[column.key] }}</span>
       </template>
-
     </UiTable>
 
     <footer v-if="showPagination" class="links-table__pagination" aria-label="Пагинация списка ссылок">
@@ -243,17 +228,6 @@ const onRetry = () => emit("retry");
   font-size: 14px;
 }
 
-.links-table__filters {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  width: min(100%, 540px);
-}
-
-.links-table__search {
-  min-width: 260px;
-}
-
 .links-table__url {
   display: inline-block;
   max-width: 260px;
@@ -286,18 +260,9 @@ const onRetry = () => emit("retry");
 
 @media (max-width: 767px) {
   .links-table__header,
-  .links-table__filters,
   .links-table__pagination {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .links-table__filters {
-    width: 100%;
-  }
-
-  .links-table__search {
-    min-width: 0;
   }
 
   .links-table__url {

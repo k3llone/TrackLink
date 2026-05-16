@@ -4,7 +4,9 @@ import { useRouter } from "vue-router";
 import { getDashboard, type DashboardResponse } from "@/api/analytics";
 import { listLinks } from "@/api/links";
 import type { ApiClientError } from "@/api/types";
-import type { Link, Pagination } from "@/entities/link/link.types";
+import type { Link, LinkStatus, Pagination } from "@/entities/link/link.types";
+import LinksSearch from "@/features/link-search/LinksSearch.vue";
+import type { LinksSearchFilters } from "@/features/link-search/useLinksSearch";
 import { DashboardSummary } from "@/widgets/dashboard";
 import { LinksTable } from "@/widgets/links-table";
 import { ROUTES } from "@/shared/lib/routes/paths";
@@ -22,6 +24,7 @@ const linksErrorMessage = ref("");
 const linksPage = ref(1);
 const linksPageSize = 20;
 const linksQ = ref("");
+const linksStatus = ref<LinkStatus | "">("");
 let linksRequestId = 0;
 
 const emptySummary: DashboardResponse = {
@@ -33,6 +36,7 @@ const emptySummary: DashboardResponse = {
 };
 
 const summary = computed(() => dashboard.value ?? emptySummary);
+const hasLinkFilters = computed(() => Boolean(linksQ.value.trim() || linksStatus.value));
 
 const isApiClientError = (error: unknown): error is ApiClientError =>
   error instanceof Error && error.name === "ApiClientError" && "status" in error;
@@ -94,6 +98,7 @@ const loadLinks = async () => {
       page: linksPage.value,
       pageSize: linksPageSize,
       q: linksQ.value,
+      status: linksStatus.value || undefined,
     });
 
     if (requestId !== linksRequestId) {
@@ -117,8 +122,9 @@ const loadLinks = async () => {
   }
 };
 
-const onLinkFiltersChange = (filters: { q: string }) => {
+const onLinkFiltersChange = (filters: LinksSearchFilters) => {
   linksQ.value = filters.q;
+  linksStatus.value = filters.status;
   linksPage.value = 1;
   void loadLinks();
 };
@@ -179,13 +185,14 @@ onMounted(() => {
         <UiButton type="button" @click="goToCreateLink">Создать ссылку</UiButton>
       </section>
 
+      <LinksSearch :q="linksQ" :status="linksStatus" :loading="isLinksLoading" @change="onLinkFiltersChange" />
+
       <LinksTable
         :links="links"
         :pagination="linksPagination"
         :loading="isLinksLoading"
         :error-message="linksErrorMessage"
-        :q="linksQ"
-        @filters-change="onLinkFiltersChange"
+        :has-filters="hasLinkFilters"
         @page-change="onLinksPageChange"
         @retry="loadLinks"
       />

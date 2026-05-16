@@ -1,16 +1,14 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
 import type { Link } from "@/entities/link/link.types";
-import { useToast } from "@/shared/composables/useToast";
 import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
-import { UiButton, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
+import { UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
 
 defineProps<{
   links: Link[];
 }>();
 
 const router = useRouter();
-const toast = useToast();
 
 const columns: UiTableColumn[] = [
   { key: "shortUrl", label: "Short URL", width: "24%" },
@@ -47,42 +45,12 @@ const formatDate = (value: string) => {
 
 const formatNumber = (value: number) => numberFormatter.format(value);
 
-const fallbackCopy = (value: string) => {
-  const textarea = document.createElement("textarea");
-  textarea.value = value;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.top = "0";
-  textarea.style.left = "0";
-  textarea.style.opacity = "0";
-
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-
-  const isCopied = document.execCommand("copy");
-  document.body.removeChild(textarea);
-
-  if (!isCopied) {
-    throw new Error("Copy command failed");
-  }
+const openLinkAnalytics = (row: unknown) => {
+  const link = row as Link;
+  void router.push(getLinkDetailsPath(link.id));
 };
 
-const copyShortUrl = async (shortUrl: string) => {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(shortUrl);
-    } else {
-      fallbackCopy(shortUrl);
-    }
-
-    toast.success("Short URL скопирован.");
-  } catch {
-    toast.error("Не удалось скопировать short URL. Скопируйте его вручную.");
-  }
-};
-
-const openAnalytics = (linkId: string) => {
+const openLinkAnalyticsById = (linkId: string) => {
   void router.push(getLinkDetailsPath(linkId));
 };
 </script>
@@ -96,15 +64,14 @@ const openAnalytics = (linkId: string) => {
       </div>
     </header>
 
-    <UiTable :columns="columns" :rows="links" empty-text="Последних ссылок пока нет.">
+    <UiTable :columns="columns" :rows="links" empty-text="Последних ссылок пока нет." row-clickable @row-click="openLinkAnalytics">
       <template #cell="{ row, column }">
         <a
           v-if="column.key === 'shortUrl'"
           class="recent-links__url recent-links__url--short"
-          :href="row.shortUrl"
-          target="_blank"
-          rel="noreferrer"
+          :href="getLinkDetailsPath(row.id)"
           :title="row.shortUrl"
+          @click.prevent.stop="openLinkAnalyticsById(row.id)"
         >
           {{ row.shortUrl }}
         </a>
@@ -127,13 +94,6 @@ const openAnalytics = (linkId: string) => {
         <span v-else-if="column.key === 'totalClicks'">{{ formatNumber(row.totalClicks) }}</span>
 
         <span v-else>{{ row[column.key] }}</span>
-      </template>
-
-      <template #actions="{ row }">
-        <div class="recent-links__actions">
-          <UiButton variant="ghost" size="sm" type="button" @click="copyShortUrl(row.shortUrl)">Копировать</UiButton>
-          <UiButton variant="ghost" size="sm" type="button" @click="openAnalytics(row.id)">Аналитика</UiButton>
-        </div>
       </template>
     </UiTable>
   </section>
@@ -183,14 +143,6 @@ const openAnalytics = (linkId: string) => {
 .recent-links__url--short {
   color: var(--tl-color-primary);
   font-weight: 700;
-}
-
-.recent-links__actions {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  flex-wrap: wrap;
 }
 
 @media (max-width: 767px) {

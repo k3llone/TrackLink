@@ -7,13 +7,14 @@ import {
   type ClickEvent,
   type LinkAnalyticsResponse,
 } from "@/api/analytics";
-import { deleteLink } from "@/api/links";
+import { findOwnLinkById } from "@/api/links";
 import type { ApiClientError } from "@/api/types";
-import { useToast } from "@/shared/composables/useToast";
+import type { Link } from "@/entities/link/link.types";
+import CopyShortUrlButton from "@/features/link-actions/CopyShortUrlButton.vue";
+import DeleteLinkButton from "@/features/link-actions/DeleteLinkButton.vue";
+import UpdateLinkStatusButton from "@/features/link-actions/UpdateLinkStatusButton.vue";
 import { ROUTES } from "@/shared/lib/routes/paths";
 import {
-  UiButton,
-  UiConfirmDialog,
   UiPageHeader,
   UiPageState,
   UiStatCard,
@@ -23,7 +24,6 @@ import {
 
 const route = useRoute();
 const router = useRouter();
-const toast = useToast();
 
 const linkId = computed(() => {
   const rawId = route.params.id;
@@ -31,10 +31,9 @@ const linkId = computed(() => {
 });
 
 const analytics = ref<LinkAnalyticsResponse | null>(null);
+const link = ref<Link | null>(null);
 const recentClicks = ref<ClickEvent[]>([]);
 const isLoading = ref(false);
-const isDeleteConfirmOpen = ref(false);
-const isDeleting = ref(false);
 const errorMessage = ref("");
 
 const clicksColumns: UiTableColumn[] = [
@@ -57,6 +56,13 @@ const isApiClientError = (error: unknown): error is ApiClientError =>
 
 const totalClicks = computed(() => numberFormatter.format(analytics.value?.totalClicks ?? 0));
 const clicksLast24h = computed(() => numberFormatter.format(analytics.value?.clicksLast24h ?? 0));
+const pageSubtitle = computed(() => {
+  if (link.value) {
+    return `Подробная статистика переходов по ссылке ${link.value.shortUrl}.`;
+  }
+
+  return linkId.value ? `Подробная статистика переходов по ссылке ${linkId.value}.` : "Ссылка не выбрана.";
+});
 
 const lastClickedAt = computed(() => {
   if (!analytics.value?.lastClickedAt) {
@@ -100,19 +106,7 @@ const getErrorMessage = (error: unknown) => {
   return "Не удалось загрузить аналитику ссылки. Проверьте соединение и повторите попытку.";
 };
 
-const getDeleteErrorMessage = (error: unknown) => {
-  if (isApiClientError(error)) {
-    if (error.status === 404) {
-      return "Ссылка уже удалена или недоступна.";
-    }
-
-    if (error.status === 401) {
-      return "Сессия недействительна. Войдите заново и повторите удаление.";
-    }
-  }
-
-  return "Не удалось удалить ссылку. Повторите попытку позже.";
-};
+const getLinkNotFoundMessage = () => "Ссылка не найдена или недоступна для управления.";
 
 const loadAnalytics = async () => {
   if (!linkId.value || isLoading.value) {
@@ -123,14 +117,25 @@ const loadAnalytics = async () => {
   errorMessage.value = "";
 
   try {
-    const [analyticsResponse, clicksResponse] = await Promise.all([
+    const [linkResponse, analyticsResponse, clicksResponse] = await Promise.all([
+      findOwnLinkById(linkId.value),
       getLinkAnalytics(linkId.value, { groupBy: "day" }),
       listRecentClicks(linkId.value, { limit: 20 }),
     ]);
 
+    if (!linkResponse) {
+      link.value = null;
+      analytics.value = null;
+      recentClicks.value = [];
+      errorMessage.value = getLinkNotFoundMessage();
+      return;
+    }
+
+    link.value = linkResponse;
     analytics.value = analyticsResponse;
     recentClicks.value = clicksResponse.items;
   } catch (error: unknown) {
+    link.value = null;
     analytics.value = null;
     recentClicks.value = [];
     errorMessage.value = getErrorMessage(error);
@@ -139,31 +144,12 @@ const loadAnalytics = async () => {
   }
 };
 
-const requestDelete = () => {
-  if (!linkId.value || isDeleting.value) {
-    return;
-  }
-
-  isDeleteConfirmOpen.value = true;
+const onLinkUpdated = (updatedLink: Link) => {
+  link.value = updatedLink;
 };
 
-const confirmDelete = async () => {
-  if (!linkId.value || isDeleting.value) {
-    return;
-  }
-
-  isDeleting.value = true;
-
-  try {
-    await deleteLink(linkId.value);
-    isDeleteConfirmOpen.value = false;
-    toast.success("Ссылка удалена.");
-    await router.push(ROUTES.dashboard);
-  } catch (error: unknown) {
-    toast.error(getDeleteErrorMessage(error));
-  } finally {
-    isDeleting.value = false;
-  }
+const onLinkDeleted = async () => {
+  await router.push(ROUTES.dashboard);
 };
 
 onMounted(() => {
@@ -175,26 +161,24 @@ onMounted(() => {
   <section class="link-analytics-page">
     <UiPageHeader
       title="Аналитика ссылки"
-      :subtitle="linkId ? `Подробная статистика переходов по ссылке ${linkId}.` : 'Ссылка не выбрана.'"
+      :subtitle="pageSubtitle"
       :back-to="ROUTES.dashboard"
       back-label="Dashboard"
     >
       <template #actions>
-        <UiButton type="button" variant="danger" :disabled="!linkId" :loading="isDeleting" @click="requestDelete">
-          Удалить
-        </UiButton>
+        <div v-if="link" class="link-analytics-page__actions">
+          <CopyShortUrlButton :short-url="link.shortUrl" variant="secondary" size="md" />
+          <UpdateLinkStatusButton :link="link" variant="secondary" size="md" @updated="onLinkUpdated" />
+          <DeleteLinkButton
+            :link-id="link.id"
+            :short-url="link.shortUrl"
+            variant="danger"
+            size="md"
+            @deleted="onLinkDeleted"
+          />
+        </div>
       </template>
     </UiPageHeader>
-
-    <UiConfirmDialog
-      v-model="isDeleteConfirmOpen"
-      title="Удалить ссылку?"
-      description="Ссылка будет удалена из списка. Это действие нельзя отменить."
-      confirm-text="Удалить"
-      cancel-text="Отмена"
-      :loading="isDeleting"
-      @confirm="confirmDelete"
-    />
 
     <UiPageState
       v-if="isLoading && !analytics"
@@ -281,6 +265,14 @@ onMounted(() => {
 <style scoped>
 .link-analytics-page {
   width: 100%;
+}
+
+.link-analytics-page__actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .link-analytics-page__content {
