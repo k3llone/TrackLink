@@ -32,6 +32,32 @@ export const listLinks = (params: ListLinksParams = {}) => {
   return http.get<LinkListResponse>(`/links${queryString ? `?${queryString}` : ""}`);
 };
 
+export const findOwnLinkById = async (linkId: string) => {
+  const normalizedLinkId = linkId.trim();
+
+  if (!normalizedLinkId) {
+    return null;
+  }
+
+  const pageSize = 100;
+  let page = 1;
+  let hasMorePages = true;
+
+  while (hasMorePages) {
+    const response = await listLinks({ page, pageSize });
+    const link = response.items.find((item) => item.id === normalizedLinkId);
+
+    if (link) {
+      return link;
+    }
+
+    hasMorePages = Boolean(response.pagination.totalPages && page < response.pagination.totalPages);
+    page += 1;
+  }
+
+  return null;
+};
+
 export const createLink = (payload: CreateLinkRequest) => http.post<Link>("/links", payload);
 
 export const updateLinkStatus = (linkId: string, payload: UpdateLinkStatusRequest) =>

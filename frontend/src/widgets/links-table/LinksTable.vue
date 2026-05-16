@@ -4,7 +4,6 @@ import { useRouter } from "vue-router";
 import type { Link, LinkStatus, Pagination } from "@/entities/link/link.types";
 import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiButton, UiPageState, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
-import LinkRowActions from "./LinkRowActions.vue";
 
 const router = useRouter();
 
@@ -26,8 +25,6 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  "link-deleted": [linkId: string];
-  "link-updated": [link: Link];
   "page-change": [page: number];
   retry: [];
 }>();
@@ -83,14 +80,6 @@ const formatNumber = (value: number) => numberFormatter.format(value);
 
 const getShortUrl = (link: Link) => link.shortUrl || link.code;
 
-const onLinkUpdated = (link: Link) => {
-  emit("link-updated", link);
-};
-
-const onLinkDeleted = (linkId: string) => {
-  emit("link-deleted", linkId);
-};
-
 const goToPreviousPage = () => {
   if (canGoPrevious.value) {
     emit("page-change", currentPage.value - 1);
@@ -106,6 +95,10 @@ const goToNextPage = () => {
 const openLinkAnalytics = (row: unknown) => {
   const link = row as Link;
   void router.push(getLinkDetailsPath(link.id));
+};
+
+const openLinkAnalyticsById = (linkId: string) => {
+  void router.push(getLinkDetailsPath(linkId));
 };
 
 const onRetry = () => emit("retry");
@@ -158,11 +151,9 @@ const onRetry = () => emit("retry");
         <a
           v-if="column.key === 'shortUrl'"
           class="links-table__url links-table__url--short"
-          :href="getShortUrl(row)"
-          target="_blank"
-          rel="noreferrer"
+          :href="getLinkDetailsPath(row.id)"
           :title="getShortUrl(row)"
-          @click.stop
+          @click.prevent.stop="openLinkAnalyticsById(row.id)"
         >
           {{ getShortUrl(row) }}
         </a>
@@ -186,10 +177,6 @@ const onRetry = () => emit("retry");
         <span v-else-if="column.key === 'totalClicks'">{{ formatNumber(row.totalClicks) }}</span>
 
         <span v-else>{{ row[column.key] }}</span>
-      </template>
-
-      <template #actions="{ row }">
-        <LinkRowActions :link="row" @deleted="onLinkDeleted" @updated="onLinkUpdated" />
       </template>
     </UiTable>
 

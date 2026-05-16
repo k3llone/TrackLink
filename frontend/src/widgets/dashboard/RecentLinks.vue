@@ -1,16 +1,14 @@
 <script setup lang="ts">
+import { useRouter } from "vue-router";
 import type { Link } from "@/entities/link/link.types";
+import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
-import LinkRowActions from "@/widgets/links-table/LinkRowActions.vue";
 
 defineProps<{
   links: Link[];
 }>();
 
-const emit = defineEmits<{
-  deleted: [linkId: string];
-  updated: [link: Link];
-}>();
+const router = useRouter();
 
 const columns: UiTableColumn[] = [
   { key: "shortUrl", label: "Short URL", width: "24%" },
@@ -47,12 +45,13 @@ const formatDate = (value: string) => {
 
 const formatNumber = (value: number) => numberFormatter.format(value);
 
-const onDeleted = (linkId: string) => {
-  emit("deleted", linkId);
+const openLinkAnalytics = (row: unknown) => {
+  const link = row as Link;
+  void router.push(getLinkDetailsPath(link.id));
 };
 
-const onUpdated = (link: Link) => {
-  emit("updated", link);
+const openLinkAnalyticsById = (linkId: string) => {
+  void router.push(getLinkDetailsPath(linkId));
 };
 </script>
 
@@ -65,15 +64,14 @@ const onUpdated = (link: Link) => {
       </div>
     </header>
 
-    <UiTable :columns="columns" :rows="links" empty-text="Последних ссылок пока нет.">
+    <UiTable :columns="columns" :rows="links" empty-text="Последних ссылок пока нет." row-clickable @row-click="openLinkAnalytics">
       <template #cell="{ row, column }">
         <a
           v-if="column.key === 'shortUrl'"
           class="recent-links__url recent-links__url--short"
-          :href="row.shortUrl"
-          target="_blank"
-          rel="noreferrer"
+          :href="getLinkDetailsPath(row.id)"
           :title="row.shortUrl"
+          @click.prevent.stop="openLinkAnalyticsById(row.id)"
         >
           {{ row.shortUrl }}
         </a>
@@ -96,10 +94,6 @@ const onUpdated = (link: Link) => {
         <span v-else-if="column.key === 'totalClicks'">{{ formatNumber(row.totalClicks) }}</span>
 
         <span v-else>{{ row[column.key] }}</span>
-      </template>
-
-      <template #actions="{ row }">
-        <LinkRowActions :link="row" @deleted="onDeleted" @updated="onUpdated" />
       </template>
     </UiTable>
   </section>
