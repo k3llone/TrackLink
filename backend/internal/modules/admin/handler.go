@@ -138,6 +138,7 @@ func parseListLinksQuery(r *http.Request) (ListLinksQuery, map[string]string) {
 	return ListLinksQuery{
 		Page:     page,
 		PageSize: pageSize,
+		Q:        strings.TrimSpace(q.Get("q")),
 	}, fields
 }
 

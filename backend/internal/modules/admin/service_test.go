@@ -48,6 +48,9 @@ func TestServiceListSuccess(t *testing.T) {
 			if filter.PageSize != 50 {
 				t.Fatalf("expected pageSize 50, got %d", filter.PageSize)
 			}
+			if filter.Q != "promo" {
+				t.Fatalf("expected q=promo, got %s", filter.Q)
+			}
 			return []links.Link{
 				{
 					ID:        "link-1",
@@ -64,6 +67,7 @@ func TestServiceListSuccess(t *testing.T) {
 	items, pagination, fields, err := service.List(context.Background(), "admin-1", ListLinksQuery{
 		Page:     2,
 		PageSize: 50,
+		Q:        "  promo  ",
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)

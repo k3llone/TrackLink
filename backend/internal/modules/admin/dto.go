@@ -18,11 +18,13 @@ type AdminBlockLinkRequest struct {
 type ListLinksQuery struct {
 	Page     int
 	PageSize int
+	Q        string
 }
 
 type ListLinksFilter struct {
 	Page     int
 	PageSize int
+	Q        string
 }
 
 type ErrorBody struct {

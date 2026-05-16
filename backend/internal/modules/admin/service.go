@@ -58,6 +58,7 @@ func (s *Service) List(ctx context.Context, adminUserID string, query ListLinksQ
 	items, totalItems, err := s.repo.List(ctx, ListLinksFilter{
 		Page:     page,
 		PageSize: pageSize,
+		Q:        strings.TrimSpace(query.Q),
 	})
 	if err != nil {
 		return nil, PaginationResponse{}, nil, err

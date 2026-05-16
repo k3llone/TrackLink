@@ -39,6 +39,9 @@ func TestHandlerListLinksSuccessForAdmin(t *testing.T) {
 			if filter.PageSize != 30 {
 				t.Fatalf("expected pageSize 30, got %d", filter.PageSize)
 			}
+			if filter.Q != "spring" {
+				t.Fatalf("expected q=spring, got %s", filter.Q)
+			}
 
 			alias := "spring"
 			return []links.Link{
@@ -61,7 +64,7 @@ func TestHandlerListLinksSuccessForAdmin(t *testing.T) {
 	handler := NewHandler(NewService(repo), "https://tracklink.example.com")
 	router := newAdminTestRouter(handler, accounts.RoleAdmin)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/links?page=2&pageSize=30", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/links?page=2&pageSize=30&q=spring", nil)
 	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-admin"})
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
