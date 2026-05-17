@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ROUTES } from "@/shared/lib/routes/paths";
 import { UiPageState } from "@/shared/ui";
 import type { LinkUnavailableReason } from "./linkUnavailable.types";
 
@@ -40,11 +39,5 @@ const message = computed(() => messages[props.reason]);
 </script>
 
 <template>
-  <UiPageState
-    :type="message.type"
-    :title="message.title"
-    :description="message.description"
-    action-text="Go to sign in"
-    :action-to="ROUTES.login"
-  />
+  <UiPageState :type="message.type" :title="message.title" :description="message.description" />
 </template>
