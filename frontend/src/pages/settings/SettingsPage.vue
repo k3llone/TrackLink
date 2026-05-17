@@ -3,6 +3,7 @@ import { computed, onMounted } from "vue";
 import ProfileInfoCard from "@/features/account-settings/ProfileInfoCard.vue";
 import SecurityActions from "@/features/account-settings/SecurityActions.vue";
 import PostMvpSettingsSection from "@/features/account-settings/PostMvpSettingsSection.vue";
+import LanguageSettingsSection from "@/features/account-settings/LanguageSettingsSection.vue";
 import { useSession } from "@/entities/session/useSession";
 import { UiPageHeader, UiPageState } from "@/shared/ui";
 
@@ -38,6 +39,7 @@ onMounted(() => {
 
     <div v-else class="settings-page__content">
       <ProfileInfoCard :email="currentUser.email" :role="currentUser.role" :created-at="currentUser.createdAt" />
+      <LanguageSettingsSection />
       <PostMvpSettingsSection />
       <SecurityActions />
     </div>
