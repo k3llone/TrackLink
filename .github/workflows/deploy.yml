@@ -1,0 +1,80 @@
+name: Deploy TrackLink
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: tracklink-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Prepare SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keyscan "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Decode env file
+        env:
+          DEPLOY_ENV_BASE64: ${{ secrets.DEPLOY_ENV_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          printf '%s' "$DEPLOY_ENV_BASE64" | base64 -d > .env.production
+          chmod 600 .env.production
+
+      - name: Deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+
+          APP_DIR="/opt/tracklink"
+
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p $APP_DIR"
+
+          scp -i ~/.ssh/deploy_key .env.production "$DEPLOY_USER@$DEPLOY_HOST:/tmp/tracklink.env"
+
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" << 'EOF'
+            set -euo pipefail
+
+            APP_DIR="/opt/tracklink"
+
+            if [ ! -d "$APP_DIR/.git" ]; then
+              git clone https://github.com/k3llone/TrackLink.git "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            mv /tmp/tracklink.env "$APP_DIR/.env"
+            chmod 600 "$APP_DIR/.env"
+
+            docker compose --env-file "$APP_DIR/.env" up -d --build --remove-orphans
+
+            docker image prune -f
+
+            docker compose --env-file "$APP_DIR/.env" ps
+
+            curl -fsS http://localhost/health || curl -fsS http://localhost:8080/health
+          EOF
