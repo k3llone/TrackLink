@@ -11,6 +11,7 @@ import EditLinkPage from "@/pages/links/edit/EditLinkPage.vue";
 import SettingsPage from "@/pages/settings/SettingsPage.vue";
 import AdminPage from "@/pages/admin/AdminPage.vue";
 import AdminLinkAnalyticsPlaceholderPage from "@/pages/admin/AdminLinkAnalyticsPlaceholderPage.vue";
+import LinkUnavailablePage from "@/pages/public/LinkUnavailablePage.vue";
 import NotFoundPage from "@/pages/not-found/NotFoundPage.vue";
 import { useSession } from "@/entities/session/useSession";
 import { ROUTES } from "@/shared/lib/routes/paths";
@@ -65,6 +66,18 @@ const routes: RouteRecordRaw[] = [
     name: "two-factor",
     component: TwoFactorPage,
     meta: { layout: "auth", requiresGuest: true },
+  },
+  {
+    path: ROUTES.linkUnavailableStatus,
+    name: "link-unavailable-status",
+    component: LinkUnavailablePage,
+    meta: { layout: "auth" },
+  },
+  {
+    path: ROUTES.linkUnavailable,
+    name: "link-unavailable",
+    component: LinkUnavailablePage,
+    meta: { layout: "auth" },
   },
   {
     path: ROUTES.dashboard,

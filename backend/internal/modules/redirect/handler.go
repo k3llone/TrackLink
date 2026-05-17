@@ -11,6 +11,14 @@ type Handler struct {
 	service *Service
 }
 
+const (
+	linkUnavailableNotFoundPath = "/link-unavailable/not-found"
+	linkUnavailableBlockedPath  = "/link-unavailable/blocked"
+	linkUnavailableInactivePath = "/link-unavailable/inactive"
+	linkUnavailableDeletedPath  = "/link-unavailable/deleted"
+	linkUnavailableGonePath     = "/link-unavailable/gone"
+)
+
 func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
@@ -29,25 +37,29 @@ func (h *Handler) RedirectByCode(w http.ResponseWriter, r *http.Request) {
 
 	switch result.Kind {
 	case ResultKindNotFound:
-		writeHTML(w, http.StatusNotFound, "Link not found", "The requested short link does not exist.")
+		redirectToUnavailablePage(w, r, linkUnavailableNotFoundPath)
 	case ResultKindRedirect:
 		http.Redirect(w, r, result.TargetURL, http.StatusFound)
 	default:
-		handleUnavailable(w, result)
+		handleUnavailable(w, r, result)
 	}
 }
 
-func handleUnavailable(w http.ResponseWriter, result ResolveResult) {
+func handleUnavailable(w http.ResponseWriter, r *http.Request, result ResolveResult) {
 	switch {
 	case result.Status == StatusBlocked:
-		writeHTML(w, http.StatusForbidden, "Link is blocked", "This short link has been blocked and cannot be opened.")
+		redirectToUnavailablePage(w, r, linkUnavailableBlockedPath)
 	case result.Status == StatusInactive:
-		writeHTML(w, http.StatusGone, "Link is inactive", "This short link is inactive and no longer available.")
+		redirectToUnavailablePage(w, r, linkUnavailableInactivePath)
 	case result.Status == StatusDeleted || result.Deleted:
-		writeHTML(w, http.StatusGone, "Link is deleted", "This short link has been deleted and is no longer available.")
+		redirectToUnavailablePage(w, r, linkUnavailableDeletedPath)
 	default:
-		writeHTML(w, http.StatusGone, "Link unavailable", "This short link is unavailable.")
+		redirectToUnavailablePage(w, r, linkUnavailableGonePath)
 	}
+}
+
+func redirectToUnavailablePage(w http.ResponseWriter, r *http.Request, path string) {
+	http.Redirect(w, r, path, http.StatusFound)
 }
 
 func writeHTML(w http.ResponseWriter, status int, title, message string) {
