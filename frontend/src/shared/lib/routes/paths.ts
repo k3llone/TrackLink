@@ -4,6 +4,7 @@ export const ROUTES = {
   forgotPassword: "/forgot-password",
   resetPassword: "/reset-password",
   twoFactor: "/2fa",
+  linkUnavailable: "/link-unavailable",
 
   dashboard: "/dashboard",
   linkCreate: "/links/create",
