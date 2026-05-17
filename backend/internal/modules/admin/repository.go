@@ -31,6 +31,11 @@ func (r *GormRepository) List(ctx context.Context, filter ListLinksFilter) ([]li
 		Where("status <> ?", links.StatusDeleted).
 		Where("deleted_at IS NULL")
 
+	if filter.Q != "" {
+		like := "%" + filter.Q + "%"
+		base = base.Where("(id::text ILIKE ? OR code ILIKE ? OR custom_alias ILIKE ?)", like, like, like)
+	}
+
 	var totalItems int64
 	if err := base.Count(&totalItems).Error; err != nil {
 		return nil, 0, fmt.Errorf("count admin links: %w", err)

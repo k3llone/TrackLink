@@ -90,6 +90,60 @@ func (h *Handler) BlockLink(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, mapAdminLink(link, h.publicURL))
 }
 
+func (h *Handler) UnblockLink(w http.ResponseWriter, r *http.Request) {
+	adminUserID, _, ok := shared.CurrentUserFromContext(r.Context())
+	if !ok || strings.TrimSpace(adminUserID) == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Unauthorized", nil)
+		return
+	}
+
+	linkID := strings.TrimSpace(chi.URLParam(r, "linkId"))
+	link, fields, err := h.service.Unblock(r.Context(), adminUserID, linkID)
+	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusBadRequest, "validation_error", "Invalid request body", fields)
+			return
+		}
+		if errors.Is(err, ErrLinkNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Resource not found", nil)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Internal server error", nil)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, mapAdminLink(link, h.publicURL))
+}
+
+func (h *Handler) DeactivateLink(w http.ResponseWriter, r *http.Request) {
+	adminUserID, _, ok := shared.CurrentUserFromContext(r.Context())
+	if !ok || strings.TrimSpace(adminUserID) == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Unauthorized", nil)
+		return
+	}
+
+	linkID := strings.TrimSpace(chi.URLParam(r, "linkId"))
+	link, fields, err := h.service.Deactivate(r.Context(), adminUserID, linkID)
+	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusBadRequest, "validation_error", "Invalid request body", fields)
+			return
+		}
+		if errors.Is(err, ErrLinkNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "Resource not found", nil)
+			return
+		}
+		if errors.Is(err, ErrStatusChangeNotAllowed) {
+			writeError(w, http.StatusConflict, "status_change_not_allowed", "Status change is not allowed", nil)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "Internal server error", nil)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, mapAdminLink(link, h.publicURL))
+}
+
 func decodeOptionalJSONBody(r *http.Request, dst any) error {
 	if r.Body == nil {
 		return nil
@@ -138,6 +192,7 @@ func parseListLinksQuery(r *http.Request) (ListLinksQuery, map[string]string) {
 	return ListLinksQuery{
 		Page:     page,
 		PageSize: pageSize,
+		Q:        strings.TrimSpace(q.Get("q")),
 	}, fields
 }
 

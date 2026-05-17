@@ -456,6 +456,40 @@ func TestAdminEndpointsAreMountedAndProtected(t *testing.T) {
 			},
 			wantStatus: http.StatusForbidden,
 		},
+		{
+			name:       "unblock returns unauthorized without session",
+			method:     http.MethodPatch,
+			path:       "/api/v1/admin/links/link-1/unblock",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:      "unblock returns forbidden for customer",
+			method:    http.MethodPatch,
+			path:      "/api/v1/admin/links/link-1/unblock",
+			sessionID: "session-customer",
+			sessionData: session.SessionData{
+				UserID: "user-1",
+				Role:   accounts.RoleCustomer,
+			},
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "deactivate returns unauthorized without session",
+			method:     http.MethodPatch,
+			path:       "/api/v1/admin/links/link-1/deactivate",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:      "deactivate returns forbidden for customer",
+			method:    http.MethodPatch,
+			path:      "/api/v1/admin/links/link-1/deactivate",
+			sessionID: "session-customer",
+			sessionData: session.SessionData{
+				UserID: "user-1",
+				Role:   accounts.RoleCustomer,
+			},
+			wantStatus: http.StatusForbidden,
+		},
 	}
 
 	for _, tt := range tests {

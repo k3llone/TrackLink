@@ -48,6 +48,9 @@ func TestServiceListSuccess(t *testing.T) {
 			if filter.PageSize != 50 {
 				t.Fatalf("expected pageSize 50, got %d", filter.PageSize)
 			}
+			if filter.Q != "promo" {
+				t.Fatalf("expected q=promo, got %s", filter.Q)
+			}
 			return []links.Link{
 				{
 					ID:        "link-1",
@@ -64,6 +67,7 @@ func TestServiceListSuccess(t *testing.T) {
 	items, pagination, fields, err := service.List(context.Background(), "admin-1", ListLinksQuery{
 		Page:     2,
 		PageSize: 50,
+		Q:        "  promo  ",
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -248,6 +252,223 @@ func TestServiceBlockTrimsReasonWithoutAffectingStorage(t *testing.T) {
 	}
 	if link.Status != links.StatusBlocked {
 		t.Fatalf("expected blocked status, got %s", link.Status)
+	}
+}
+
+func TestServiceUnblockTransitionsBlockedToActive(t *testing.T) {
+	updateCalled := false
+	repo := fakeRepository{
+		getByIDFn: func(_ context.Context, linkID string) (links.Link, error) {
+			return links.Link{ID: linkID, Status: links.StatusBlocked}, nil
+		},
+		updateStatusFn: func(_ context.Context, linkID, status string) (links.Link, error) {
+			updateCalled = true
+			if status != links.StatusActive {
+				t.Fatalf("expected active status, got %s", status)
+			}
+			return links.Link{ID: linkID, Status: status}, nil
+		},
+	}
+
+	service := NewService(repo)
+	link, fields, err := service.Unblock(context.Background(), "admin-1", "link-1")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+	if !updateCalled {
+		t.Fatal("expected update status to be called")
+	}
+	if link.Status != links.StatusActive {
+		t.Fatalf("expected active status, got %s", link.Status)
+	}
+}
+
+func TestServiceUnblockReturnsNonBlockedLinkAsIs(t *testing.T) {
+	repo := fakeRepository{
+		getByIDFn: func(_ context.Context, linkID string) (links.Link, error) {
+			return links.Link{ID: linkID, Status: links.StatusActive}, nil
+		},
+		updateStatusFn: func(_ context.Context, _, _ string) (links.Link, error) {
+			t.Fatal("update status must not be called for non-blocked link")
+			return links.Link{}, nil
+		},
+	}
+
+	service := NewService(repo)
+	link, fields, err := service.Unblock(context.Background(), "admin-1", "link-1")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+	if link.Status != links.StatusActive {
+		t.Fatalf("expected active status, got %s", link.Status)
+	}
+}
+
+func TestServiceUnblockReturnsNotFoundWhenLinkMissingOrDeleted(t *testing.T) {
+	tests := []struct {
+		name string
+		repo fakeRepository
+	}{
+		{
+			name: "missing",
+			repo: fakeRepository{
+				getByIDFn: func(_ context.Context, _ string) (links.Link, error) {
+					return links.Link{}, ErrLinkNotFound
+				},
+			},
+		},
+		{
+			name: "deleted",
+			repo: fakeRepository{
+				getByIDFn: func(_ context.Context, _ string) (links.Link, error) {
+					now := time.Now().UTC()
+					return links.Link{
+						ID:        "link-1",
+						Status:    links.StatusDeleted,
+						DeletedAt: &now,
+					}, nil
+				},
+				updateStatusFn: func(_ context.Context, _, _ string) (links.Link, error) {
+					t.Fatal("update status must not be called for deleted link")
+					return links.Link{}, nil
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := NewService(tt.repo)
+			_, _, err := service.Unblock(context.Background(), "admin-1", "link-1")
+			if !errors.Is(err, ErrLinkNotFound) {
+				t.Fatalf("expected ErrLinkNotFound, got %v", err)
+			}
+		})
+	}
+}
+
+func TestServiceDeactivateTransitionsActiveToInactive(t *testing.T) {
+	updateCalled := false
+	repo := fakeRepository{
+		getByIDFn: func(_ context.Context, linkID string) (links.Link, error) {
+			return links.Link{ID: linkID, Status: links.StatusActive}, nil
+		},
+		updateStatusFn: func(_ context.Context, linkID, status string) (links.Link, error) {
+			updateCalled = true
+			if status != links.StatusInactive {
+				t.Fatalf("expected inactive status, got %s", status)
+			}
+			return links.Link{ID: linkID, Status: status}, nil
+		},
+	}
+
+	service := NewService(repo)
+	link, fields, err := service.Deactivate(context.Background(), "admin-1", "link-1")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+	if !updateCalled {
+		t.Fatal("expected update status to be called")
+	}
+	if link.Status != links.StatusInactive {
+		t.Fatalf("expected inactive status, got %s", link.Status)
+	}
+}
+
+func TestServiceDeactivateReturnsInactiveLinkAsIs(t *testing.T) {
+	repo := fakeRepository{
+		getByIDFn: func(_ context.Context, linkID string) (links.Link, error) {
+			return links.Link{ID: linkID, Status: links.StatusInactive}, nil
+		},
+		updateStatusFn: func(_ context.Context, _, _ string) (links.Link, error) {
+			t.Fatal("update status must not be called for inactive link")
+			return links.Link{}, nil
+		},
+	}
+
+	service := NewService(repo)
+	link, fields, err := service.Deactivate(context.Background(), "admin-1", "link-1")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+	if link.Status != links.StatusInactive {
+		t.Fatalf("expected inactive status, got %s", link.Status)
+	}
+}
+
+func TestServiceDeactivateRejectsBlockedLink(t *testing.T) {
+	repo := fakeRepository{
+		getByIDFn: func(_ context.Context, linkID string) (links.Link, error) {
+			return links.Link{ID: linkID, Status: links.StatusBlocked}, nil
+		},
+		updateStatusFn: func(_ context.Context, _, _ string) (links.Link, error) {
+			t.Fatal("update status must not be called for blocked link")
+			return links.Link{}, nil
+		},
+	}
+
+	service := NewService(repo)
+	_, fields, err := service.Deactivate(context.Background(), "admin-1", "link-1")
+	if !errors.Is(err, ErrStatusChangeNotAllowed) {
+		t.Fatalf("expected ErrStatusChangeNotAllowed, got %v", err)
+	}
+	if fields != nil {
+		t.Fatalf("expected nil fields, got %v", fields)
+	}
+}
+
+func TestServiceDeactivateReturnsNotFoundWhenLinkMissingOrDeleted(t *testing.T) {
+	tests := []struct {
+		name string
+		repo fakeRepository
+	}{
+		{
+			name: "missing",
+			repo: fakeRepository{
+				getByIDFn: func(_ context.Context, _ string) (links.Link, error) {
+					return links.Link{}, ErrLinkNotFound
+				},
+			},
+		},
+		{
+			name: "deleted",
+			repo: fakeRepository{
+				getByIDFn: func(_ context.Context, _ string) (links.Link, error) {
+					now := time.Now().UTC()
+					return links.Link{
+						ID:        "link-1",
+						Status:    links.StatusDeleted,
+						DeletedAt: &now,
+					}, nil
+				},
+				updateStatusFn: func(_ context.Context, _, _ string) (links.Link, error) {
+					t.Fatal("update status must not be called for deleted link")
+					return links.Link{}, nil
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := NewService(tt.repo)
+			_, _, err := service.Deactivate(context.Background(), "admin-1", "link-1")
+			if !errors.Is(err, ErrLinkNotFound) {
+				t.Fatalf("expected ErrLinkNotFound, got %v", err)
+			}
+		})
 	}
 }
 

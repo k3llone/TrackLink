@@ -11,6 +11,7 @@ import (
 
 var ErrValidation = errors.New("validation failed")
 var ErrLinkNotFound = errors.New("link not found")
+var ErrStatusChangeNotAllowed = errors.New("status change not allowed")
 
 const (
 	defaultListPage     = 1
@@ -58,6 +59,7 @@ func (s *Service) List(ctx context.Context, adminUserID string, query ListLinksQ
 	items, totalItems, err := s.repo.List(ctx, ListLinksFilter{
 		Page:     page,
 		PageSize: pageSize,
+		Q:        strings.TrimSpace(query.Q),
 	})
 	if err != nil {
 		return nil, PaginationResponse{}, nil, err
@@ -108,6 +110,90 @@ func (s *Service) Block(ctx context.Context, adminUserID, linkID string, req Adm
 	}
 
 	updated, err := s.repo.UpdateStatus(ctx, linkID, links.StatusBlocked)
+	if err != nil {
+		if errors.Is(err, ErrLinkNotFound) {
+			return links.Link{}, nil, ErrLinkNotFound
+		}
+		return links.Link{}, nil, err
+	}
+
+	return updated, nil, nil
+}
+
+func (s *Service) Unblock(ctx context.Context, adminUserID, linkID string) (links.Link, map[string]string, error) {
+	fields := map[string]string{}
+
+	if strings.TrimSpace(adminUserID) == "" {
+		fields["adminUserId"] = "Admin user ID is required"
+	}
+	if strings.TrimSpace(linkID) == "" {
+		fields["linkId"] = "Link ID is required"
+	}
+	if len(fields) > 0 {
+		return links.Link{}, fields, ErrValidation
+	}
+
+	link, err := s.repo.GetByID(ctx, linkID)
+	if err != nil {
+		if errors.Is(err, ErrLinkNotFound) {
+			return links.Link{}, nil, ErrLinkNotFound
+		}
+		return links.Link{}, nil, err
+	}
+
+	if link.Status == links.StatusDeleted || link.DeletedAt != nil {
+		return links.Link{}, nil, ErrLinkNotFound
+	}
+
+	if link.Status != links.StatusBlocked {
+		return link, nil, nil
+	}
+
+	updated, err := s.repo.UpdateStatus(ctx, linkID, links.StatusActive)
+	if err != nil {
+		if errors.Is(err, ErrLinkNotFound) {
+			return links.Link{}, nil, ErrLinkNotFound
+		}
+		return links.Link{}, nil, err
+	}
+
+	return updated, nil, nil
+}
+
+func (s *Service) Deactivate(ctx context.Context, adminUserID, linkID string) (links.Link, map[string]string, error) {
+	fields := map[string]string{}
+
+	if strings.TrimSpace(adminUserID) == "" {
+		fields["adminUserId"] = "Admin user ID is required"
+	}
+	if strings.TrimSpace(linkID) == "" {
+		fields["linkId"] = "Link ID is required"
+	}
+	if len(fields) > 0 {
+		return links.Link{}, fields, ErrValidation
+	}
+
+	link, err := s.repo.GetByID(ctx, linkID)
+	if err != nil {
+		if errors.Is(err, ErrLinkNotFound) {
+			return links.Link{}, nil, ErrLinkNotFound
+		}
+		return links.Link{}, nil, err
+	}
+
+	if link.Status == links.StatusDeleted || link.DeletedAt != nil {
+		return links.Link{}, nil, ErrLinkNotFound
+	}
+
+	if link.Status == links.StatusBlocked {
+		return links.Link{}, nil, ErrStatusChangeNotAllowed
+	}
+
+	if link.Status == links.StatusInactive {
+		return link, nil, nil
+	}
+
+	updated, err := s.repo.UpdateStatus(ctx, linkID, links.StatusInactive)
 	if err != nil {
 		if errors.Is(err, ErrLinkNotFound) {
 			return links.Link{}, nil, ErrLinkNotFound

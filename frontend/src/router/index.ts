@@ -10,6 +10,7 @@ import LinkAnalyticsPage from "@/pages/links/analytics/LinkAnalyticsPage.vue";
 import EditLinkPage from "@/pages/links/edit/EditLinkPage.vue";
 import SettingsPage from "@/pages/settings/SettingsPage.vue";
 import AdminPage from "@/pages/admin/AdminPage.vue";
+import AdminLinkAnalyticsPlaceholderPage from "@/pages/admin/AdminLinkAnalyticsPlaceholderPage.vue";
 import NotFoundPage from "@/pages/not-found/NotFoundPage.vue";
 import { useSession } from "@/entities/session/useSession";
 import { ROUTES } from "@/shared/lib/routes/paths";
@@ -99,6 +100,12 @@ const routes: RouteRecordRaw[] = [
     path: ROUTES.admin,
     name: "admin",
     component: AdminPage,
+    meta: { layout: "app", requiresAuth: true, requiresAdmin: true },
+  },
+  {
+    path: ROUTES.adminLinkDetails,
+    name: "admin-link-details",
+    component: AdminLinkAnalyticsPlaceholderPage,
     meta: { layout: "app", requiresAuth: true, requiresAdmin: true },
   },
   {
