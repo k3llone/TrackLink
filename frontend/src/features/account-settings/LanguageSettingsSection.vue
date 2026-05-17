@@ -10,12 +10,12 @@ const toast = useToast();
 const languageOptions = computed<Array<{ value: Locale; label: string; description: string }>>(() => [
   {
     value: "en",
-    label: "English",
+    label: t("common.language.english"),
     description: t("settings.language.englishDescription"),
   },
   {
     value: "ru",
-    label: "Русский",
+    label: t("common.language.russian"),
     description: t("settings.language.russianDescription"),
   },
 ]);

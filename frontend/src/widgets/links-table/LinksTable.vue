@@ -2,10 +2,12 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import type { Link, LinkStatus, Pagination } from "@/entities/link/link.types";
+import { useI18n } from "@/shared/composables/useI18n";
 import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiButton, UiPageState, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
 
 const router = useRouter();
+const { formatDate, formatNumber, t } = useI18n();
 
 const props = withDefaults(
   defineProps<{
@@ -29,27 +31,19 @@ const emit = defineEmits<{
   retry: [];
 }>();
 
-const columns: UiTableColumn[] = [
-  { key: "shortUrl", label: "Short URL", width: "22%" },
-  { key: "targetUrl", label: "Target URL", width: "30%" },
-  { key: "createdAt", label: "Создана", width: "14%" },
-  { key: "status", label: "Статус", width: "13%" },
-  { key: "totalClicks", label: "Переходы", width: "10%", align: "right" },
-];
+const columns = computed<UiTableColumn[]>(() => [
+  { key: "shortUrl", label: t("common.shortUrl"), width: "22%" },
+  { key: "targetUrl", label: t("common.targetUrl"), width: "30%" },
+  { key: "createdAt", label: t("common.created"), width: "14%" },
+  { key: "status", label: t("common.status"), width: "13%" },
+  { key: "totalClicks", label: t("common.clicks"), width: "10%", align: "right" },
+]);
 
-const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-});
-
-const numberFormatter = new Intl.NumberFormat("ru-RU");
-
-const statusLabels: Record<LinkStatus, string> = {
-  active: "Активна",
-  inactive: "Неактивна",
-  blocked: "Заблокирована",
-  deleted: "Удалена",
+const statusLabels: Record<LinkStatus, () => string> = {
+  active: () => t("link.status.active"),
+  inactive: () => t("link.status.inactive"),
+  blocked: () => t("link.status.blocked"),
+  deleted: () => t("link.status.deleted"),
 };
 
 const currentPage = computed(() => props.pagination?.page ?? 1);
@@ -59,24 +53,17 @@ const hasFilters = computed(() => props.hasFilters);
 const showPagination = computed(() => Boolean(props.pagination && totalItems.value > 0));
 const canGoPrevious = computed(() => currentPage.value > 1 && !props.loading);
 const canGoNext = computed(() => currentPage.value < totalPages.value && !props.loading);
-const totalItemsLabel = computed(() => numberFormatter.format(totalItems.value));
+const totalItemsLabel = computed(() => formatNumber(totalItems.value));
 const emptyDescription = computed(() =>
-  hasFilters.value
-    ? "По текущим фильтрам ссылок не найдено."
-    : "Создайте первую короткую ссылку, чтобы она появилась в списке.",
+  hasFilters.value ? t("links.table.emptyWithFilters") : t("links.table.emptyNoFilters"),
 );
-
-const formatDate = (value: string) => {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return dateFormatter.format(date);
-};
-
-const formatNumber = (value: number) => numberFormatter.format(value);
+const paginationSummary = computed(() =>
+  t("links.table.paginationSummary", {
+    total: totalItemsLabel.value,
+    page: currentPage.value,
+    totalPages: totalPages.value,
+  }),
+);
 
 const getShortUrl = (link: Link) => link.shortUrl || link.code;
 
@@ -108,17 +95,17 @@ const onRetry = () => emit("retry");
   <section class="links-table" aria-labelledby="links-table-title">
     <header class="links-table__header">
       <div class="links-table__title-group">
-        <h2 id="links-table-title" class="links-table__title">Ссылки</h2>
-        <p class="links-table__subtitle">Список коротких ссылок аккаунта.</p>
+        <h2 id="links-table-title" class="links-table__title">{{ t("links.table.title") }}</h2>
+        <p class="links-table__subtitle">{{ t("links.table.subtitle") }}</p>
       </div>
     </header>
 
     <UiPageState
       v-if="errorMessage"
       type="error"
-      title="Список ссылок недоступен"
+      :title="t('links.table.errorTitle')"
       :description="errorMessage"
-      action-text="Повторить"
+      :action-text="t('common.retry')"
       @action="onRetry"
     />
 
@@ -127,22 +114,22 @@ const onRetry = () => emit("retry");
       :columns="columns"
       :rows="links"
       :loading="loading"
-      empty-text="Ссылок пока нет."
+      :empty-text="t('links.table.emptyText')"
       row-clickable
       @row-click="openLinkAnalytics"
     >
       <template #loading>
         <UiPageState
           type="loading"
-          title="Загружаем ссылки"
-          description="Получаем список коротких ссылок аккаунта."
+          :title="t('links.table.loadingTitle')"
+          :description="t('links.table.loadingDescription')"
         />
       </template>
 
       <template #empty>
         <UiPageState
           type="empty"
-          title="Ссылок пока нет"
+          :title="t('links.table.emptyTitle')"
           :description="emptyDescription"
         />
       </template>
@@ -172,7 +159,7 @@ const onRetry = () => emit("retry");
 
         <span v-else-if="column.key === 'createdAt'">{{ formatDate(row.createdAt) }}</span>
 
-        <UiStatusBadge v-else-if="column.key === 'status'" :status="row.status" :label="statusLabels[row.status]" />
+        <UiStatusBadge v-else-if="column.key === 'status'" :status="row.status" :label="statusLabels[row.status]()" />
 
         <span v-else-if="column.key === 'totalClicks'">{{ formatNumber(row.totalClicks) }}</span>
 
@@ -180,17 +167,15 @@ const onRetry = () => emit("retry");
       </template>
     </UiTable>
 
-    <footer v-if="showPagination" class="links-table__pagination" aria-label="Пагинация списка ссылок">
-      <span class="links-table__pagination-summary">
-        {{ totalItemsLabel }} ссылок · страница {{ currentPage }} из {{ totalPages }}
-      </span>
+    <footer v-if="showPagination" class="links-table__pagination" :aria-label="t('links.table.paginationAria')">
+      <span class="links-table__pagination-summary">{{ paginationSummary }}</span>
 
       <div class="links-table__pagination-actions">
         <UiButton variant="secondary" size="sm" type="button" :disabled="!canGoPrevious" @click="goToPreviousPage">
-          Назад
+          {{ t("common.previous") }}
         </UiButton>
         <UiButton variant="secondary" size="sm" type="button" :disabled="!canGoNext" @click="goToNextPage">
-          Вперед
+          {{ t("common.next") }}
         </UiButton>
       </div>
     </footer>

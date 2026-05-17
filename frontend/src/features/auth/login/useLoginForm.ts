@@ -3,6 +3,7 @@ import { useRouter } from "vue-router";
 import { loginUser } from "@/api/auth";
 import type { ApiClientError, ApiFieldErrors } from "@/api/types";
 import { useSession } from "@/entities/session/useSession";
+import { t } from "@/shared/lib/i18n";
 import { ROUTES } from "@/shared/lib/routes/paths";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -36,13 +37,13 @@ export const useLoginForm = () => {
     clearErrors();
 
     if (!form.email.trim()) {
-      errors.email = "Email is required";
+      errors.email = t("auth.validation.emailRequired");
     } else if (!EMAIL_PATTERN.test(form.email.trim())) {
-      errors.email = "Enter a valid email address";
+      errors.email = t("auth.validation.emailInvalid");
     }
 
     if (!form.password) {
-      errors.password = "Password is required";
+      errors.password = t("auth.validation.passwordRequired");
     }
 
     return !errors.email && !errors.password;
@@ -77,15 +78,15 @@ export const useLoginForm = () => {
     } catch (error: unknown) {
       if (isApiClientError(error)) {
         if (error.status === 401) {
-          errors.form = "Invalid username or password";
+          errors.form = t("auth.login.invalidCredentials");
         } else if (error.status === 400 || error.status === 422) {
           applyFieldErrors(error.fields);
-          errors.form = hasFieldErrors(error.fields) ? "" : "Проверьте корректность email и пароля.";
+          errors.form = hasFieldErrors(error.fields) ? "" : t("auth.login.validationFailed");
         } else {
-          errors.form = "Не удалось войти. Попробуйте еще раз позже.";
+          errors.form = t("auth.login.submitFailed");
         }
       } else {
-        errors.form = "Не удалось войти. Проверьте соединение и попробуйте снова.";
+        errors.form = t("auth.login.networkFailed");
       }
 
       return false;

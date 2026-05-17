@@ -1,6 +1,7 @@
 import { computed, readonly, ref } from "vue";
 import { getCurrentUser } from "@/api/auth";
 import type { ApiClientError } from "@/api/types";
+import { t } from "@/shared/lib/i18n";
 import type { SessionError, SessionStatus, User } from "./session.types";
 
 const user = ref<User | null>(null);
@@ -25,7 +26,7 @@ const normalizeSessionError = (error: unknown): SessionError => {
       return {
         status: error.status,
         code: "unauthorized",
-        message: "Session expired. Sign in again.",
+        message: t("session.expired"),
       };
     }
 
@@ -33,21 +34,21 @@ const normalizeSessionError = (error: unknown): SessionError => {
       return {
         status: error.status,
         code: "forbidden",
-        message: "You do not have permission to access this page.",
+        message: t("session.forbidden"),
       };
     }
 
     return {
       status: error.status,
       code: error.code || "session_check_failed",
-      message: "Could not verify your session. Try again later.",
+      message: t("session.verifyFailed"),
     };
   }
 
   return {
     status: null,
     code: "network_error",
-    message: "Could not verify your session. Check your connection and try again.",
+    message: t("session.networkError"),
   };
 };
 

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "@/shared/composables/useI18n";
+
 export type UiToastItem = {
   id: string;
   type: "success" | "error" | "info" | "warning";
@@ -20,6 +22,7 @@ const emit = defineEmits<{
   remove: [id: string];
 }>();
 
+const { t } = useI18n();
 const onRemove = (id: string) => emit("remove", id);
 </script>
 
@@ -31,7 +34,7 @@ const onRemove = (id: string) => emit("remove", id);
           <strong v-if="item.title" class="ui-toast__title">{{ item.title }}</strong>
           <p class="ui-toast__message">{{ item.message }}</p>
         </div>
-        <button type="button" class="ui-toast__close" aria-label="Close toast" @click="onRemove(item.id)">x</button>
+        <button type="button" class="ui-toast__close" :aria-label="t('common.closeToast')" @click="onRemove(item.id)">x</button>
       </article>
     </div>
   </Teleport>

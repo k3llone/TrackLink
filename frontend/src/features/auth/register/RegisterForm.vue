@@ -1,21 +1,23 @@
 <script setup lang="ts">
 import { RouterLink } from "vue-router";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiButton, UiInput } from "@/shared/ui";
 import { ROUTES } from "@/shared/lib/routes/paths";
 import AuthFormCard from "../AuthFormCard.vue";
 import { useRegisterForm } from "./useRegisterForm";
 
 const { form, errors, isSubmitting, submit } = useRegisterForm();
+const { t } = useI18n();
 </script>
 
 <template>
-  <AuthFormCard title="Create your account" subtitle="Start managing short links with TrackLink.">
+  <AuthFormCard :title="t('auth.register.title')" :subtitle="t('auth.register.subtitle')">
     <form class="register-form" novalidate @submit.prevent="submit">
       <p v-if="errors.form" class="register-form__error" role="alert">{{ errors.form }}</p>
 
       <UiInput
         v-model="form.email"
-        label="Email"
+        :label="t('common.email')"
         type="email"
         autocomplete="email"
         placeholder="you@example.com"
@@ -26,10 +28,10 @@ const { form, errors, isSubmitting, submit } = useRegisterForm();
 
       <UiInput
         v-model="form.password"
-        label="Password"
+        :label="t('common.password')"
         type="password"
         autocomplete="new-password"
-        placeholder="At least 8 characters"
+        :placeholder="t('auth.register.passwordPlaceholder')"
         required
         :disabled="isSubmitting"
         :error="errors.password"
@@ -37,21 +39,21 @@ const { form, errors, isSubmitting, submit } = useRegisterForm();
 
       <UiInput
         v-model="form.confirmPassword"
-        label="Confirm password"
+        :label="t('auth.register.confirmPasswordLabel')"
         type="password"
         autocomplete="new-password"
-        placeholder="Repeat your password"
+        :placeholder="t('auth.register.confirmPasswordPlaceholder')"
         required
         :disabled="isSubmitting"
         :error="errors.confirmPassword"
       />
 
-      <UiButton type="submit" size="lg" full-width :loading="isSubmitting">Create account</UiButton>
+      <UiButton type="submit" size="lg" full-width :loading="isSubmitting">{{ t("auth.register.submit") }}</UiButton>
     </form>
 
     <template #footer>
-      Already have an account?
-      <RouterLink class="register-form__footer-link" :to="ROUTES.login">Sign in</RouterLink>
+      {{ t("auth.register.footerText") }}
+      <RouterLink class="register-form__footer-link" :to="ROUTES.login">{{ t("auth.register.footerAction") }}</RouterLink>
     </template>
   </AuthFormCard>
 </template>

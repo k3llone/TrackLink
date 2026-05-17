@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { AdminLink } from "@/api/admin";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiConfirmDialog } from "@/shared/ui";
 
 const props = withDefaults(
@@ -19,6 +20,7 @@ const emit = defineEmits<{
   confirm: [];
 }>();
 
+const { t } = useI18n();
 const model = computed({
   get: () => props.modelValue,
   set: (value: boolean) => emit("update:modelValue", value),
@@ -26,7 +28,7 @@ const model = computed({
 
 const linkLabel = computed(() => {
   if (!props.link) {
-    return "selected link";
+    return t("common.notAvailable");
   }
 
   return props.link.shortUrl || props.link.customAlias || props.link.code || props.link.id;
@@ -34,20 +36,23 @@ const linkLabel = computed(() => {
 
 const description = computed(() => {
   if (!props.link) {
-    return "Selected link will be blocked for redirects.";
+    return t("admin.block.description");
   }
 
-  return `Ссылка ${linkLabel.value} будет заблокирована. Redirect на ${props.link.targetUrl} станет недоступен.`;
+  return t("admin.block.descriptionWithTarget", {
+    link: linkLabel.value,
+    targetUrl: props.link.targetUrl,
+  });
 });
 </script>
 
 <template>
   <UiConfirmDialog
     v-model="model"
-    title="Заблокировать ссылку?"
+    :title="t('admin.block.confirmTitle')"
     :description="description"
-    confirm-text="Заблокировать"
-    cancel-text="Отмена"
+    :confirm-text="t('admin.block.label')"
+    :cancel-text="t('common.cancel')"
     variant="danger"
     :loading="loading"
     @confirm="emit('confirm')"

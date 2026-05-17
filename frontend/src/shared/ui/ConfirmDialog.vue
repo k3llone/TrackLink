@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { computed } from "vue";
+import { useI18n } from "@/shared/composables/useI18n";
 import UiButton from "./Button.vue";
 import UiModal from "./Modal.vue";
 
 type ConfirmVariant = "primary" | "danger";
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     modelValue: boolean;
     title: string;
@@ -16,8 +18,8 @@ withDefaults(
   }>(),
   {
     description: "",
-    confirmText: "Confirm",
-    cancelText: "Cancel",
+    confirmText: "",
+    cancelText: "",
     variant: "danger",
     loading: false,
   },
@@ -28,6 +30,10 @@ const emit = defineEmits<{
   confirm: [];
   cancel: [];
 }>();
+
+const { t } = useI18n();
+const resolvedConfirmText = computed(() => props.confirmText || t("common.confirm"));
+const resolvedCancelText = computed(() => props.cancelText || t("common.cancel"));
 
 const onClose = () => emit("update:modelValue", false);
 const onCancel = () => {
@@ -40,8 +46,8 @@ const onConfirm = () => emit("confirm");
 <template>
   <UiModal :model-value="modelValue" :title="title" :description="description" @update:model-value="onClose">
     <template #footer>
-      <UiButton variant="secondary" :disabled="loading" @click="onCancel">{{ cancelText }}</UiButton>
-      <UiButton :variant="variant" :loading="loading" @click="onConfirm">{{ confirmText }}</UiButton>
+      <UiButton variant="secondary" :disabled="loading" @click="onCancel">{{ resolvedCancelText }}</UiButton>
+      <UiButton :variant="variant" :loading="loading" @click="onConfirm">{{ resolvedConfirmText }}</UiButton>
     </template>
   </UiModal>
 </template>

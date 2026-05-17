@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useI18n } from "@/shared/composables/useI18n";
 import { getLinkDetailsPath, ROUTES } from "@/shared/lib/routes/paths";
 import { UiButton, UiPageHeader, UiPageState, UiStatusBadge } from "@/shared/ui";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 
 const linkId = computed(() => {
   const rawId = route.params.id;
@@ -28,49 +30,45 @@ const goToDashboard = () => {
 <template>
   <section class="edit-link-page">
     <UiPageHeader
-      title="Редактирование ссылки"
-      subtitle="Изменение target URL запланировано для Post-MVP и недоступно в текущей версии."
+      :title="t('editLink.page.title')"
+      :subtitle="t('editLink.page.subtitle')"
       :back-to="ROUTES.dashboard"
-      back-label="Dashboard"
+      :back-label="t('common.dashboard')"
     >
-      <UiStatusBadge status="pending" label="Post-MVP" />
+      <UiStatusBadge status="pending" :label="t('common.postMvp')" />
     </UiPageHeader>
 
     <UiPageState
       v-if="!linkId"
       type="not-found"
-      title="Ссылка не выбрана"
-      description="Откройте нужную ссылку из dashboard или списка ссылок."
+      :title="t('editLink.noLink.title')"
+      :description="t('editLink.noLink.description')"
       :action-to="ROUTES.dashboard"
-      action-text="Вернуться на dashboard"
+      :action-text="t('editLink.noLink.action')"
     />
 
     <div v-else class="edit-link-page__content">
       <section class="edit-link-page__notice" aria-labelledby="edit-link-notice-title">
         <div class="edit-link-page__notice-copy">
-          <h2 id="edit-link-notice-title" class="edit-link-page__notice-title">Target URL нельзя изменить в MVP</h2>
-          <p class="edit-link-page__notice-text">
-            Изменение назначения уже распространенной короткой ссылки несет риск подмены целевого ресурса. Форма
-            редактирования будет подключена после появления backend/API-поддержки, истории изменений и дополнительных
-            ограничений безопасности.
-          </p>
+          <h2 id="edit-link-notice-title" class="edit-link-page__notice-title">{{ t("editLink.notice.title") }}</h2>
+          <p class="edit-link-page__notice-text">{{ t("editLink.notice.text") }}</p>
         </div>
 
-        <dl class="edit-link-page__meta" aria-label="Данные выбранной ссылки">
+        <dl class="edit-link-page__meta" :aria-label="t('editLink.notice.metaAria')">
           <div class="edit-link-page__meta-row">
-            <dt>Link ID</dt>
+            <dt>{{ t("common.linkId") }}</dt>
             <dd>{{ linkId }}</dd>
           </div>
           <div class="edit-link-page__meta-row">
-            <dt>Target URL edit</dt>
-            <dd>Post-MVP</dd>
+            <dt>{{ t("common.targetUrlEdit") }}</dt>
+            <dd>{{ t("common.postMvp") }}</dd>
           </div>
         </dl>
       </section>
 
       <div class="edit-link-page__actions">
-        <UiButton type="button" @click="goToAnalytics">К аналитике</UiButton>
-        <UiButton type="button" variant="secondary" @click="goToDashboard">Dashboard</UiButton>
+        <UiButton type="button" @click="goToAnalytics">{{ t("editLink.actions.analytics") }}</UiButton>
+        <UiButton type="button" variant="secondary" @click="goToDashboard">{{ t("common.dashboard") }}</UiButton>
       </div>
     </div>
   </section>

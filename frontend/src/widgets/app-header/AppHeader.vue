@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { RouterLink, useRoute } from "vue-router";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiBrandLogo, UiButton } from "@/shared/ui";
 import { ROUTES } from "@/shared/lib/routes/paths";
 
@@ -20,6 +21,7 @@ const emit = defineEmits<{
 }>();
 
 const route = useRoute();
+const { t } = useI18n();
 
 const isDashboardActive = computed(
   () => route.path.startsWith(ROUTES.dashboard) || route.path.startsWith("/links"),
@@ -31,7 +33,7 @@ const onLogout = () => emit("logout");
 <template>
   <header class="app-header">
     <div class="app-header__left">
-      <RouterLink :to="ROUTES.dashboard" class="app-header__brand-link" aria-label="TrackLink dashboard">
+      <RouterLink :to="ROUTES.dashboard" class="app-header__brand-link" :aria-label="t('appHeader.brandAria')">
         <UiBrandLogo variant="header" />
       </RouterLink>
 
@@ -40,19 +42,19 @@ const onLogout = () => emit("logout");
         class="app-header__dashboard-link"
         :class="{ 'is-active': isDashboardActive }"
       >
-        Dashboard
+        {{ t("common.dashboard") }}
       </RouterLink>
     </div>
 
     <div class="app-header__right">
-      <span v-if="loading" class="app-header__email app-header__email--muted">Loading...</span>
+      <span v-if="loading" class="app-header__email app-header__email--muted">{{ t("common.loading") }}</span>
       <span v-else-if="userEmail" class="app-header__email">{{ userEmail }}</span>
-      <span v-else class="app-header__email app-header__email--muted">No email</span>
+      <span v-else class="app-header__email app-header__email--muted">{{ t("common.noEmail") }}</span>
 
-      <RouterLink :to="ROUTES.settings" class="app-header__settings-link">Settings</RouterLink>
+      <RouterLink :to="ROUTES.settings" class="app-header__settings-link">{{ t("appHeader.settings") }}</RouterLink>
 
       <UiButton variant="ghost" size="sm" :loading="loading" @click="onLogout">
-        <span>Logout</span>
+        <span>{{ t("appHeader.logout") }}</span>
         <template #iconRight>
           <svg viewBox="0 0 24 24" class="app-header__logout-icon" aria-hidden="true">
             <path

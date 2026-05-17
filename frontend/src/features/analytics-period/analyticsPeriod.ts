@@ -23,19 +23,19 @@ export const DEFAULT_ANALYTICS_PERIOD: AnalyticsPeriodValue = "7d";
 export const ANALYTICS_PERIOD_OPTIONS: AnalyticsPeriodOption[] = [
   {
     value: "24h",
-    label: "24 часа",
+    label: "24h",
     groupBy: "hour",
     durationMs: 24 * HOUR_MS,
   },
   {
     value: "7d",
-    label: "7 дней",
+    label: "7d",
     groupBy: "day",
     durationMs: 7 * DAY_MS,
   },
   {
     value: "30d",
-    label: "30 дней",
+    label: "30d",
     groupBy: "day",
     durationMs: 30 * DAY_MS,
   },

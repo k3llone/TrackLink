@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { unblockAdminLink, type AdminLink } from "@/api/admin";
 import type { ApiClientError } from "@/api/types";
+import { useI18n } from "@/shared/composables/useI18n";
 import { useToast } from "@/shared/composables/useToast";
 import { UiButton } from "@/shared/ui";
 
@@ -29,6 +30,7 @@ const emit = defineEmits<{
 }>();
 
 const toast = useToast();
+const { t } = useI18n();
 const isUnblocking = ref(false);
 
 const isApiClientError = (error: unknown): error is ApiClientError =>
@@ -36,22 +38,20 @@ const isApiClientError = (error: unknown): error is ApiClientError =>
 
 const canUnblock = computed(() => props.link.status === "blocked");
 const isDisabled = computed(() => props.disabled || isUnblocking.value || !canUnblock.value);
-const title = computed(() =>
-  canUnblock.value ? "Разблокировать ссылку" : "Можно разблокировать только заблокированную ссылку.",
-);
+const title = computed(() => (canUnblock.value ? t("admin.unblock.title") : t("admin.unblock.disabledTitle")));
 
 const getUnblockLinkErrorMessage = (error: unknown) => {
   if (isApiClientError(error)) {
     if (error.status === 401 || error.status === 403) {
-      return "У вас нет доступа к административной панели.";
+      return t("admin.unblock.error.access");
     }
 
     if (error.status === 404) {
-      return "Ссылка не найдена или уже удалена.";
+      return t("admin.unblock.error.notFound");
     }
   }
 
-  return "Не удалось разблокировать ссылку.";
+  return t("admin.unblock.error.failed");
 };
 
 const unblock = async () => {
@@ -63,7 +63,7 @@ const unblock = async () => {
 
   try {
     const updatedLink = await unblockAdminLink(props.link.id);
-    toast.success("Ссылка разблокирована.");
+    toast.success(t("admin.unblock.success"));
     emit("unblocked", updatedLink);
   } catch (error: unknown) {
     toast.error(getUnblockLinkErrorMessage(error));
@@ -84,6 +84,6 @@ const unblock = async () => {
     :title="title"
     @click.stop="unblock"
   >
-    Разблокировать
+    {{ t("admin.unblock.label") }}
   </UiButton>
 </template>

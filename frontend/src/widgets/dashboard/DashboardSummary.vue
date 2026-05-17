@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiStatCard } from "@/shared/ui";
 
 const props = withDefaults(
@@ -19,40 +20,38 @@ const props = withDefaults(
   },
 );
 
-const numberFormatter = new Intl.NumberFormat("ru-RU");
-
-const formatNumber = (value: number) => numberFormatter.format(value);
+const { formatNumber, t } = useI18n();
 
 const cards = computed(() => [
   {
     key: "totalLinks",
-    title: "Всего ссылок",
+    title: t("dashboard.summary.totalLinks.title"),
     value: formatNumber(props.totalLinks),
-    hint: "Созданные короткие ссылки",
+    hint: t("dashboard.summary.totalLinks.hint"),
   },
   {
     key: "activeLinks",
-    title: "Активные ссылки",
+    title: t("dashboard.summary.activeLinks.title"),
     value: formatNumber(props.activeLinks),
-    hint: "Сейчас доступны для переходов",
+    hint: t("dashboard.summary.activeLinks.hint"),
   },
   {
     key: "totalClicks",
-    title: "Всего переходов",
+    title: t("dashboard.summary.totalClicks.title"),
     value: formatNumber(props.totalClicks),
-    hint: "Суммарно по всем ссылкам",
+    hint: t("dashboard.summary.totalClicks.hint"),
   },
   {
     key: "clicksLast24h",
-    title: "За 24 часа",
+    title: t("dashboard.summary.clicksLast24h.title"),
     value: formatNumber(props.clicksLast24h),
-    hint: "Переходы за последние сутки",
+    hint: t("dashboard.summary.clicksLast24h.hint"),
   },
 ]);
 </script>
 
 <template>
-  <section class="dashboard-summary" aria-label="Ключевые показатели dashboard">
+  <section class="dashboard-summary" :aria-label="t('dashboard.summary.aria')">
     <UiStatCard
       v-for="card in cards"
       :key="card.key"

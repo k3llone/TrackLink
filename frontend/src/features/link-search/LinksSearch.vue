@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { watch } from "vue";
+import { computed, watch } from "vue";
 import type { LinkStatus } from "@/entities/link/link.types";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiInput } from "@/shared/ui";
 import { useLinksSearch, type LinksSearchFilters, type LinksSearchStatus } from "./useLinksSearch";
 
@@ -21,19 +22,20 @@ const emit = defineEmits<{
   change: [filters: LinksSearchFilters];
 }>();
 
+const { t } = useI18n();
 const search = useLinksSearch({
   initialQ: props.q,
   initialStatus: props.status,
   onChange: (filters) => emit("change", filters),
 });
 
-const statusOptions: Array<{ value: LinksSearchStatus; label: string }> = [
-  { value: "", label: "Все статусы" },
-  { value: "active", label: "Активные" },
-  { value: "inactive", label: "Неактивные" },
-  { value: "blocked", label: "Заблокированные" },
-  { value: "deleted", label: "Удаленные" },
-];
+const statusOptions = computed<Array<{ value: LinksSearchStatus; label: string }>>(() => [
+  { value: "", label: t("links.search.allStatuses") },
+  { value: "active", label: t("links.search.active") },
+  { value: "inactive", label: t("links.search.inactive") },
+  { value: "blocked", label: t("links.search.blocked") },
+  { value: "deleted", label: t("links.search.deleted") },
+]);
 
 watch(
   () => props.q,
@@ -56,18 +58,18 @@ const onStatusChange = (event: Event) => {
 </script>
 
 <template>
-  <section class="links-search" aria-label="Поиск и фильтр ссылок">
+  <section class="links-search" :aria-label="t('links.search.aria')">
     <UiInput
       v-model="search.q.value"
       class="links-search__input"
       type="search"
-      placeholder="Поиск по short code, alias или target URL"
+      :placeholder="t('links.search.placeholder')"
       autocomplete="off"
       :loading="loading"
     />
 
     <label class="links-search__status">
-      <span class="links-search__status-label">Статус</span>
+      <span class="links-search__status-label">{{ t("common.status") }}</span>
       <select
         class="links-search__select"
         :value="search.status.value"

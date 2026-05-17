@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "@/shared/composables/useI18n";
 import {
   ANALYTICS_PERIOD_OPTIONS,
   DEFAULT_ANALYTICS_PERIOD,
@@ -22,7 +23,14 @@ const emit = defineEmits<{
   change: [value: AnalyticsPeriodValue];
 }>();
 
+const { t } = useI18n();
 const selectedValue = computed(() => props.modelValue);
+
+const optionLabels: Record<AnalyticsPeriodValue, () => string> = {
+  "24h": () => t("analytics.period.24h"),
+  "7d": () => t("analytics.period.7d"),
+  "30d": () => t("analytics.period.30d"),
+};
 
 const selectPeriod = (value: AnalyticsPeriodValue) => {
   if (props.loading || value === selectedValue.value) {
@@ -35,10 +43,10 @@ const selectPeriod = (value: AnalyticsPeriodValue) => {
 </script>
 
 <template>
-  <section class="analytics-period-picker" aria-label="Период анализа">
-    <span class="analytics-period-picker__label">Период</span>
+  <section class="analytics-period-picker" :aria-label="t('analytics.period.aria')">
+    <span class="analytics-period-picker__label">{{ t("analytics.period.label") }}</span>
 
-    <div class="analytics-period-picker__control" role="group" aria-label="Выбор периода аналитики">
+    <div class="analytics-period-picker__control" role="group" :aria-label="t('analytics.period.controlAria')">
       <button
         v-for="option in ANALYTICS_PERIOD_OPTIONS"
         :key="option.value"
@@ -49,7 +57,7 @@ const selectPeriod = (value: AnalyticsPeriodValue) => {
         :disabled="loading"
         @click="selectPeriod(option.value)"
       >
-        {{ option.label }}
+        {{ optionLabels[option.value]() }}
       </button>
     </div>
   </section>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from "vue";
+import { useI18n } from "@/shared/composables/useI18n";
 import UiPageState from "./PageState.vue";
 
 export type UiTableColumn = {
@@ -20,7 +22,7 @@ const props = withDefaults(
     columns: () => [],
     rows: () => [],
     loading: false,
-    emptyText: "No data yet",
+    emptyText: "",
     rowClickable: false,
   },
 );
@@ -28,6 +30,9 @@ const props = withDefaults(
 const emit = defineEmits<{
   "row-click": [row: unknown, rowIndex: number];
 }>();
+
+const { t } = useI18n();
+const resolvedEmptyText = computed(() => props.emptyText || t("table.noData"));
 
 const onRowClick = (row: unknown, rowIndex: number) => {
   if (props.rowClickable) {
@@ -39,11 +44,11 @@ const onRowClick = (row: unknown, rowIndex: number) => {
 <template>
   <div class="ui-table">
     <slot v-if="loading" name="loading">
-      <UiPageState type="loading" title="Loading data" />
+      <UiPageState type="loading" :title="t('table.loadingData')" />
     </slot>
 
     <slot v-else-if="!rows.length" name="empty">
-      <UiPageState type="empty" :description="emptyText" />
+      <UiPageState type="empty" :description="resolvedEmptyText" />
     </slot>
 
     <template v-else>
@@ -59,7 +64,7 @@ const onRowClick = (row: unknown, rowIndex: number) => {
               >
                 {{ column.label }}
               </th>
-              <th v-if="$slots.actions" class="align-right">Actions</th>
+              <th v-if="$slots.actions" class="align-right">{{ t("common.actions") }}</th>
             </tr>
           </thead>
 
@@ -82,7 +87,7 @@ const onRowClick = (row: unknown, rowIndex: number) => {
                     :class="`align-${column.align ?? 'left'}`"
                   >
                     <slot name="cell" :row="row" :column="column">
-                      {{ (row as Record<string, unknown>)[column.key] ?? "—" }}
+                      {{ (row as Record<string, unknown>)[column.key] ?? t("common.notAvailableSymbol") }}
                     </slot>
                   </td>
                 </slot>

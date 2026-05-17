@@ -1,5 +1,8 @@
 <script setup lang="ts">
-withDefaults(
+import { computed } from "vue";
+import { useI18n } from "@/shared/composables/useI18n";
+
+const props = withDefaults(
   defineProps<{
     title?: string;
     subtitle?: string;
@@ -10,15 +13,18 @@ withDefaults(
     title: "",
     subtitle: "",
     backTo: "",
-    backLabel: "Back",
+    backLabel: "",
   },
 );
+
+const { t } = useI18n();
+const resolvedBackLabel = computed(() => props.backLabel || t("common.back"));
 </script>
 
 <template>
   <header class="ui-page-header">
     <div class="ui-page-header__main">
-      <a v-if="backTo" :href="backTo" class="ui-page-header__back">← {{ backLabel }}</a>
+      <a v-if="backTo" :href="backTo" class="ui-page-header__back">&larr; {{ resolvedBackLabel }}</a>
       <h1 v-if="title" class="ui-page-header__title">{{ title }}</h1>
       <p v-if="subtitle" class="ui-page-header__subtitle">{{ subtitle }}</p>
       <slot />

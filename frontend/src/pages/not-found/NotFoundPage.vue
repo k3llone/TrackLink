@@ -1,11 +1,14 @@
 <script setup lang="ts">
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiPageState } from "@/shared/ui";
+
+const { t } = useI18n();
 </script>
 
 <template>
   <UiPageState
     type="not-found"
-    title="Page not found"
-    description="The page you requested does not exist or has been moved."
+    :title="t('notFound.title')"
+    :description="t('notFound.description')"
   />
 </template>

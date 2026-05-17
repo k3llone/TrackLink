@@ -5,9 +5,11 @@ import SecurityActions from "@/features/account-settings/SecurityActions.vue";
 import PostMvpSettingsSection from "@/features/account-settings/PostMvpSettingsSection.vue";
 import LanguageSettingsSection from "@/features/account-settings/LanguageSettingsSection.vue";
 import { useSession } from "@/entities/session/useSession";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiPageHeader, UiPageState } from "@/shared/ui";
 
 const session = useSession();
+const { t } = useI18n();
 
 const currentUser = computed(() => session.user.value);
 const isLoading = computed(() => session.isLoading.value);
@@ -21,20 +23,20 @@ onMounted(() => {
 
 <template>
   <section class="settings-page">
-    <UiPageHeader title="Account settings" subtitle="Manage profile details and account security." />
+    <UiPageHeader :title="t('settings.page.title')" :subtitle="t('settings.page.subtitle')" />
 
     <UiPageState
       v-if="isLoading"
       type="loading"
-      title="Loading account"
-      description="Preparing your account settings."
+      :title="t('settings.page.loadingTitle')"
+      :description="t('settings.page.loadingDescription')"
     />
 
     <UiPageState
       v-else-if="!currentUser"
       type="error"
-      title="Account data unavailable"
-      description="Refresh the page or sign in again to load your account details."
+      :title="t('settings.page.errorTitle')"
+      :description="t('settings.page.errorDescription')"
     />
 
     <div v-else class="settings-page__content">

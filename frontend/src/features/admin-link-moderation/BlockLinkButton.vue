@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { blockAdminLink, type AdminLink } from "@/api/admin";
 import type { ApiClientError } from "@/api/types";
+import { useI18n } from "@/shared/composables/useI18n";
 import { useToast } from "@/shared/composables/useToast";
 import { UiButton } from "@/shared/ui";
 import BlockLinkDialog from "./BlockLinkDialog.vue";
@@ -23,7 +24,7 @@ const props = withDefaults(
     size: "sm",
     disabled: false,
     fullWidth: false,
-    label: "Заблокировать",
+    label: "",
   },
 );
 
@@ -32,6 +33,7 @@ const emit = defineEmits<{
 }>();
 
 const toast = useToast();
+const { t } = useI18n();
 const isDialogOpen = ref(false);
 const isBlocking = ref(false);
 
@@ -40,22 +42,21 @@ const isApiClientError = (error: unknown): error is ApiClientError =>
 
 const canBlock = computed(() => props.link.status !== "blocked" && props.link.status !== "deleted");
 const isDisabled = computed(() => props.disabled || isBlocking.value || !canBlock.value);
-const title = computed(() =>
-  canBlock.value ? props.label : "Ссылка уже заблокирована или удалена.",
-);
+const buttonLabel = computed(() => props.label || t("admin.block.label"));
+const title = computed(() => (canBlock.value ? buttonLabel.value : t("admin.block.disabledTitle")));
 
 const getBlockLinkErrorMessage = (error: unknown) => {
   if (isApiClientError(error)) {
     if (error.status === 401 || error.status === 403) {
-      return "У вас нет доступа к административной панели.";
+      return t("admin.block.error.access");
     }
 
     if (error.status === 404 || error.status === 409 || error.code === "status_change_not_allowed") {
-      return "Ссылка уже заблокирована или удалена.";
+      return t("admin.block.error.unavailable");
     }
   }
 
-  return "Не удалось деактивировать ссылку.";
+  return t("admin.block.error.failed");
 };
 
 const requestBlock = () => {
@@ -76,7 +77,7 @@ const confirmBlock = async () => {
   try {
     const updatedLink = await blockAdminLink(props.link.id);
     isDialogOpen.value = false;
-    toast.success("Ссылка заблокирована.");
+    toast.success(t("admin.block.success"));
     emit("blocked", updatedLink);
   } catch (error: unknown) {
     toast.error(getBlockLinkErrorMessage(error));
@@ -97,7 +98,7 @@ const confirmBlock = async () => {
     :title="title"
     @click.stop="requestBlock"
   >
-    {{ label }}
+    {{ buttonLabel }}
   </UiButton>
 
   <BlockLinkDialog

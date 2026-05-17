@@ -9,10 +9,12 @@ import LinksSearch from "@/features/link-search/LinksSearch.vue";
 import type { LinksSearchFilters } from "@/features/link-search/useLinksSearch";
 import { DashboardSummary } from "@/widgets/dashboard";
 import { LinksTable } from "@/widgets/links-table";
+import { useI18n } from "@/shared/composables/useI18n";
 import { ROUTES } from "@/shared/lib/routes/paths";
 import { UiButton, UiPageHeader, UiPageState } from "@/shared/ui";
 
 const router = useRouter();
+const { t } = useI18n();
 
 const dashboard = ref<DashboardResponse | null>(null);
 const isDashboardLoading = ref(false);
@@ -44,15 +46,15 @@ const isApiClientError = (error: unknown): error is ApiClientError =>
 const getDashboardErrorMessage = (error: unknown) => {
   if (isApiClientError(error)) {
     if (error.status === 401) {
-      return "Сессия недействительна. Войдите заново, чтобы открыть dashboard.";
+      return t("dashboard.error.unauthorized");
     }
 
     if (error.status === 403) {
-      return "У вас нет доступа к dashboard этого аккаунта.";
+      return t("dashboard.error.forbidden");
     }
   }
 
-  return "Не удалось загрузить dashboard. Проверьте соединение и повторите попытку.";
+  return t("dashboard.error.failed");
 };
 
 const loadDashboard = async () => {
@@ -76,15 +78,15 @@ const loadDashboard = async () => {
 const getLinksErrorMessage = (error: unknown) => {
   if (isApiClientError(error)) {
     if (error.status === 400) {
-      return "Проверьте параметры поиска списка ссылок.";
+      return t("dashboard.links.error.badSearch");
     }
 
     if (error.status === 401) {
-      return "Сессия недействительна. Войдите заново, чтобы открыть список ссылок.";
+      return t("dashboard.links.error.unauthorized");
     }
   }
 
-  return "Не удалось загрузить список ссылок. Проверьте соединение и повторите попытку.";
+  return t("dashboard.links.error.failed");
 };
 
 const loadLinks = async () => {
@@ -146,7 +148,7 @@ onMounted(() => {
 
 <template>
   <section class="dashboard-page">
-    <UiPageHeader title="Dashboard" subtitle="Ключевые показатели аккаунта и последние созданные ссылки." />
+    <UiPageHeader :title="t('dashboard.page.title')" :subtitle="t('dashboard.page.subtitle')" />
 
     <DashboardSummary
       v-if="isDashboardLoading || dashboard"
@@ -160,29 +162,27 @@ onMounted(() => {
     <UiPageState
       v-if="isDashboardLoading && !dashboard"
       type="loading"
-      title="Загружаем dashboard"
-      description="Получаем метрики и последние ссылки аккаунта."
+      :title="t('dashboard.loading.title')"
+      :description="t('dashboard.loading.description')"
     />
 
     <UiPageState
       v-else-if="dashboardErrorMessage"
       type="error"
-      title="Dashboard недоступен"
+      :title="t('dashboard.unavailable.title')"
       :description="dashboardErrorMessage"
-      action-text="Повторить"
+      :action-text="t('common.retry')"
       @action="loadDashboard"
     />
 
     <div v-else-if="dashboard" class="dashboard-page__content">
       <section class="dashboard-page__quick-actions" aria-labelledby="dashboard-quick-actions-title">
         <div class="dashboard-page__quick-copy">
-          <h2 id="dashboard-quick-actions-title" class="dashboard-page__section-title">Быстрые действия</h2>
-          <p class="dashboard-page__section-description">
-            Создайте новую короткую ссылку и сразу начните собирать статистику переходов.
-          </p>
+          <h2 id="dashboard-quick-actions-title" class="dashboard-page__section-title">{{ t("dashboard.quick.title") }}</h2>
+          <p class="dashboard-page__section-description">{{ t("dashboard.quick.description") }}</p>
         </div>
 
-        <UiButton type="button" @click="goToCreateLink">Создать ссылку</UiButton>
+        <UiButton type="button" @click="goToCreateLink">{{ t("dashboard.quick.createLink") }}</UiButton>
       </section>
 
       <LinksSearch :q="linksQ" :status="linksStatus" :loading="isLinksLoading" @change="onLinkFiltersChange" />

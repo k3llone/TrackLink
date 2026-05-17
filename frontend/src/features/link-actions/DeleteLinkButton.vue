@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { deleteLink } from "@/api/links";
+import { useI18n } from "@/shared/composables/useI18n";
 import { useToast } from "@/shared/composables/useToast";
 import { UiButton, UiConfirmDialog } from "@/shared/ui";
 import { getDeleteLinkErrorMessage } from "./linkActionErrors";
@@ -22,7 +23,7 @@ const props = withDefaults(
     variant: "ghost",
     size: "sm",
     disabled: false,
-    label: "Удалить",
+    label: "",
   },
 );
 
@@ -31,18 +32,20 @@ const emit = defineEmits<{
 }>();
 
 const toast = useToast();
+const { t } = useI18n();
 const isConfirmOpen = ref(false);
 const isDeleting = ref(false);
 
 const isDisabled = computed(() => props.disabled || isDeleting.value || !props.linkId);
+const buttonLabel = computed(() => props.label || t("common.delete"));
 const confirmDescription = computed(() => {
   const shortUrl = props.shortUrl.trim();
 
   if (shortUrl) {
-    return `Ссылка ${shortUrl} будет удалена из обычного списка. Это действие нельзя отменить.`;
+    return t("linkActions.delete.descriptionWithUrl", { shortUrl });
   }
 
-  return "Ссылка будет удалена из обычного списка. Это действие нельзя отменить.";
+  return t("linkActions.delete.description");
 });
 
 const requestDelete = () => {
@@ -63,7 +66,7 @@ const confirmDelete = async () => {
   try {
     await deleteLink(props.linkId);
     isConfirmOpen.value = false;
-    toast.success("Ссылка удалена.");
+    toast.success(t("linkActions.delete.success"));
     emit("deleted", props.linkId);
   } catch (error: unknown) {
     toast.error(getDeleteLinkErrorMessage(error));
@@ -82,15 +85,15 @@ const confirmDelete = async () => {
     :loading="isDeleting"
     @click.stop="requestDelete"
   >
-    {{ label }}
+    {{ buttonLabel }}
   </UiButton>
 
   <UiConfirmDialog
     v-model="isConfirmOpen"
-    title="Удалить ссылку?"
+    :title="t('linkActions.delete.confirmTitle')"
     :description="confirmDescription"
-    confirm-text="Удалить"
-    cancel-text="Отмена"
+    :confirm-text="t('common.delete')"
+    :cancel-text="t('common.cancel')"
     :loading="isDeleting"
     @confirm="confirmDelete"
   />

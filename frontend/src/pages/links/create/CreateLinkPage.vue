@@ -3,11 +3,13 @@ import { ref } from "vue";
 import type { Link } from "@/entities/link/link.types";
 import CreatedLinkResult from "@/features/create-link/CreatedLinkResult.vue";
 import CreateLinkForm from "@/features/create-link/CreateLinkForm.vue";
+import { useI18n } from "@/shared/composables/useI18n";
 import { ROUTES } from "@/shared/lib/routes/paths";
 import { UiPageHeader } from "@/shared/ui";
 
 const createdLink = ref<Link | null>(null);
 const formKey = ref(0);
+const { t } = useI18n();
 
 const onLinkCreated = (link: Link) => {
   createdLink.value = link;
@@ -22,10 +24,10 @@ const onCreateMore = () => {
 <template>
   <section class="create-link-page">
     <UiPageHeader
-      title="Создание короткой ссылки"
-      subtitle="Укажите target URL и optional alias, чтобы получить short URL."
+      :title="t('createLink.page.title')"
+      :subtitle="t('createLink.page.subtitle')"
       :back-to="ROUTES.dashboard"
-      back-label="Dashboard"
+      :back-label="t('common.dashboard')"
     />
 
     <div class="create-link-page__content">

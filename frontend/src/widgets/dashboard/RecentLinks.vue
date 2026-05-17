@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { useRouter } from "vue-router";
 import type { Link } from "@/entities/link/link.types";
+import { useI18n } from "@/shared/composables/useI18n";
 import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
 
@@ -9,41 +11,22 @@ defineProps<{
 }>();
 
 const router = useRouter();
+const { formatDate, formatNumber, t } = useI18n();
 
-const columns: UiTableColumn[] = [
-  { key: "shortUrl", label: "Short URL", width: "24%" },
-  { key: "targetUrl", label: "Target URL", width: "30%" },
-  { key: "createdAt", label: "Создана", width: "16%" },
-  { key: "status", label: "Статус", width: "14%" },
-  { key: "totalClicks", label: "Переходы", width: "12%", align: "right" },
-];
+const columns = computed<UiTableColumn[]>(() => [
+  { key: "shortUrl", label: t("common.shortUrl"), width: "24%" },
+  { key: "targetUrl", label: t("common.targetUrl"), width: "30%" },
+  { key: "createdAt", label: t("common.created"), width: "16%" },
+  { key: "status", label: t("common.status"), width: "14%" },
+  { key: "totalClicks", label: t("common.clicks"), width: "12%", align: "right" },
+]);
 
-const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-});
-
-const numberFormatter = new Intl.NumberFormat("ru-RU");
-
-const statusLabels: Record<Link["status"], string> = {
-  active: "Активна",
-  inactive: "Неактивна",
-  blocked: "Заблокирована",
-  deleted: "Удалена",
+const statusLabels: Record<Link["status"], () => string> = {
+  active: () => t("link.status.active"),
+  inactive: () => t("link.status.inactive"),
+  blocked: () => t("link.status.blocked"),
+  deleted: () => t("link.status.deleted"),
 };
-
-const formatDate = (value: string) => {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return dateFormatter.format(date);
-};
-
-const formatNumber = (value: number) => numberFormatter.format(value);
 
 const openLinkAnalytics = (row: unknown) => {
   const link = row as Link;
@@ -59,12 +42,12 @@ const openLinkAnalyticsById = (linkId: string) => {
   <section class="recent-links" aria-labelledby="recent-links-title">
     <header class="recent-links__header">
       <div class="recent-links__title-group">
-        <h2 id="recent-links-title" class="recent-links__title">Последние ссылки</h2>
-        <p class="recent-links__subtitle">Компактный список недавно созданных ссылок аккаунта.</p>
+        <h2 id="recent-links-title" class="recent-links__title">{{ t("links.recent.title") }}</h2>
+        <p class="recent-links__subtitle">{{ t("links.recent.subtitle") }}</p>
       </div>
     </header>
 
-    <UiTable :columns="columns" :rows="links" empty-text="Последних ссылок пока нет." row-clickable @row-click="openLinkAnalytics">
+    <UiTable :columns="columns" :rows="links" :empty-text="t('links.recent.emptyText')" row-clickable @row-click="openLinkAnalytics">
       <template #cell="{ row, column }">
         <a
           v-if="column.key === 'shortUrl'"
@@ -89,7 +72,7 @@ const openLinkAnalyticsById = (linkId: string) => {
 
         <span v-else-if="column.key === 'createdAt'">{{ formatDate(row.createdAt) }}</span>
 
-        <UiStatusBadge v-else-if="column.key === 'status'" :status="row.status" :label="statusLabels[row.status]" />
+        <UiStatusBadge v-else-if="column.key === 'status'" :status="row.status" :label="statusLabels[row.status]()" />
 
         <span v-else-if="column.key === 'totalClicks'">{{ formatNumber(row.totalClicks) }}</span>
 

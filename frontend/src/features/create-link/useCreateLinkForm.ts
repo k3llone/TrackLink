@@ -5,6 +5,7 @@ import type { ApiClientError, ApiFieldErrors } from "@/api/types";
 import type { CreateLinkRequest, Link } from "@/entities/link/link.types";
 import { useSession } from "@/entities/session/useSession";
 import { useToast } from "@/shared/composables/useToast";
+import { t } from "@/shared/lib/i18n";
 import { ROUTES } from "@/shared/lib/routes/paths";
 
 const CUSTOM_ALIAS_PATTERN = /^[a-zA-Z0-9_-]+$/;
@@ -53,16 +54,16 @@ export const useCreateLinkForm = () => {
     const customAlias = form.customAlias.trim();
 
     if (!targetUrl) {
-      errors.targetUrl = "Укажите целевой URL";
+      errors.targetUrl = t("createLink.validation.targetRequired");
     } else if (!isValidTargetUrl(targetUrl)) {
-      errors.targetUrl = "Введите корректный http или https URL";
+      errors.targetUrl = t("createLink.validation.targetInvalid");
     }
 
     if (customAlias) {
       if (customAlias.length < MIN_CUSTOM_ALIAS_LENGTH || customAlias.length > MAX_CUSTOM_ALIAS_LENGTH) {
-        errors.customAlias = "Alias должен содержать от 3 до 64 символов";
+        errors.customAlias = t("createLink.validation.aliasLength");
       } else if (!CUSTOM_ALIAS_PATTERN.test(customAlias)) {
-        errors.customAlias = "Alias может содержать только латиницу, цифры, _ и -";
+        errors.customAlias = t("createLink.validation.aliasPattern");
       }
     }
 
@@ -108,7 +109,7 @@ export const useCreateLinkForm = () => {
 
     try {
       const link = await createLink(getPayload());
-      toast.success("Короткая ссылка создана.");
+      toast.success(t("createLink.success"));
 
       return link;
     } catch (error: unknown) {
@@ -116,15 +117,15 @@ export const useCreateLinkForm = () => {
         if (error.status === 401) {
           await handleUnauthorized();
         } else if (error.status === 409) {
-          errors.customAlias = "Этот alias уже занят";
+          errors.customAlias = t("createLink.error.aliasTaken");
         } else if (error.status === 400 || error.status === 422) {
           applyFieldErrors(error.fields);
-          errors.form = hasFieldErrors(error.fields) ? "" : "Проверьте target URL и custom alias.";
+          errors.form = hasFieldErrors(error.fields) ? "" : t("createLink.error.validationFailed");
         } else {
-          errors.form = "Не удалось создать короткую ссылку. Повторите попытку позже.";
+          errors.form = t("createLink.error.failed");
         }
       } else {
-        errors.form = "Не удалось создать короткую ссылку. Проверьте соединение и попробуйте снова.";
+        errors.form = t("createLink.error.networkFailed");
       }
 
       return null;

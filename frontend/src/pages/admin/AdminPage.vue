@@ -5,9 +5,11 @@ import type { ApiClientError } from "@/api/types";
 import type { Pagination } from "@/entities/link/link.types";
 import { useSession } from "@/entities/session/useSession";
 import { AdminLinksSearch, AdminLinksTable } from "@/features/admin-link-moderation";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiPageHeader, UiPageState } from "@/shared/ui";
 
 const session = useSession();
+const { t } = useI18n();
 
 const links = ref<AdminLink[]>([]);
 const linksPagination = ref<Pagination | null>(null);
@@ -31,14 +33,14 @@ const isAccessError = (error: unknown) =>
 
 const getLinksErrorMessage = (error: unknown) => {
   if (isAccessError(error)) {
-    return "У вас нет доступа к административной панели.";
+    return t("admin.error.access");
   }
 
   if (isApiClientError(error) && error.status === 400) {
-    return "Проверьте параметры поиска ссылок.";
+    return t("admin.error.badSearch");
   }
 
-  return "Не удалось загрузить список ссылок.";
+  return t("admin.error.failed");
 };
 
 const loadLinks = async () => {
@@ -121,28 +123,28 @@ onMounted(() => {
     <UiPageState
       v-if="isCheckingAccess"
       type="loading"
-      title="Проверяем доступ"
-      description="Проверяем права доступа к административной панели."
+      :title="t('admin.page.checkingTitle')"
+      :description="t('admin.page.checkingDescription')"
     />
 
     <UiPageState
       v-else-if="isForbidden"
       type="forbidden"
-      title="Нет доступа"
-      description="У вас нет доступа к административной панели."
+      :title="t('admin.page.forbiddenTitle')"
+      :description="t('admin.page.forbiddenDescription')"
     />
 
     <UiPageState
       v-else-if="accessErrorMessage"
       type="forbidden"
-      title="Нет доступа"
+      :title="t('admin.page.forbiddenTitle')"
       :description="accessErrorMessage"
     />
 
     <template v-else>
       <UiPageHeader
-        title="Admin panel"
-        subtitle="Просмотр коротких ссылок и административная блокировка."
+        :title="t('admin.page.title')"
+        :subtitle="t('admin.page.subtitle')"
       />
 
       <div class="admin-page__content">
