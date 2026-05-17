@@ -68,6 +68,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: "auth", requiresGuest: true },
   },
   {
+    path: ROUTES.linkUnavailableStatus,
+    name: "link-unavailable-status",
+    component: LinkUnavailablePage,
+    meta: { layout: "auth" },
+  },
+  {
     path: ROUTES.linkUnavailable,
     name: "link-unavailable",
     component: LinkUnavailablePage,
