@@ -5,16 +5,14 @@ services:
     container_name: tracklink-api
     environment:
       HTTP_ADDR: ":8080"
-      PUBLIC_URL: "http://localhost:8080"
-      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/tracklink?sslmode=disable"
+      PUBLIC_URL: "${PUBLIC_URL:?PUBLIC_URL is required}"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}?sslmode=disable"
       REDIS_ADDR: "redis://redis:6379/0"
-      LOG_FORMAT: "text"
-      SESSION_SECRET: "change-me-in-dev"
-      SESSION_TTL: "24h"
-      SESSION_COOKIE_SECURE: "false"
+      LOG_FORMAT: "${LOG_FORMAT:-json}"
+      SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required}"
+      SESSION_TTL: "${SESSION_TTL:-24h}"
+      SESSION_COOKIE_SECURE: "true"
       POSTGRES_PING_TIMEOUT: "3s"
-    ports:
-      - "8081:8080"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -26,7 +24,7 @@ services:
     image: postgres:16-alpine
     container_name: tracklink-migrate
     environment:
-      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/tracklink?sslmode=disable"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}?sslmode=disable"
     volumes:
       - ./backend/migrations:/migrations:ro
       - ./backend/scripts/run-migrations.sh:/scripts/run-migrations.sh:ro
@@ -46,11 +44,16 @@ services:
   caddy:
     image: caddy:2-alpine
     container_name: tracklink-caddy
+    environment:
+      DOMAIN: "${DOMAIN:?DOMAIN is required}"
     ports:
-      - "8080:80"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - frontend_dist:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       frontend:
         condition: service_completed_successfully
@@ -62,15 +65,13 @@ services:
     image: postgres:16-alpine
     container_name: tracklink-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: tracklink
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER is required}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB is required}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d tracklink"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -79,8 +80,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: tracklink-redis
-    ports:
-      - "6379:6379"
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
@@ -95,3 +94,5 @@ volumes:
   postgres_data:
   redis_data:
   frontend_dist:
+  caddy_data:
+  caddy_config:
