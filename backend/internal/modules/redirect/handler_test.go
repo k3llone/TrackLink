@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -26,20 +25,19 @@ func TestHandlerRedirectByCodeReturnsNotFound(t *testing.T) {
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusNotFound {
-		t.Fatalf("expected status %d, got %d", http.StatusNotFound, rr.Code)
+	if rr.Code != http.StatusFound {
+		t.Fatalf("expected status %d, got %d", http.StatusFound, rr.Code)
 	}
-	if !strings.Contains(rr.Body.String(), "Link not found") {
-		t.Fatalf("expected html not found message, got %s", rr.Body.String())
+	if location := rr.Header().Get("Location"); location != linkUnavailableNotFoundPath {
+		t.Fatalf("expected location %s, got %s", linkUnavailableNotFoundPath, location)
 	}
 }
 
-func TestHandlerRedirectByCodeReturnsStatusPagesForUnavailableLink(t *testing.T) {
+func TestHandlerRedirectByCodeRedirectsUnavailableLinkToStatusPages(t *testing.T) {
 	tests := []struct {
 		name         string
 		link         Link
-		wantCode     int
-		wantContains string
+		wantLocation string
 	}{
 		{
 			name: "blocked",
@@ -49,8 +47,7 @@ func TestHandlerRedirectByCodeReturnsStatusPagesForUnavailableLink(t *testing.T)
 				TargetURL: "https://example.com",
 				Status:    StatusBlocked,
 			},
-			wantCode:     http.StatusForbidden,
-			wantContains: "Link is blocked",
+			wantLocation: linkUnavailableBlockedPath,
 		},
 		{
 			name: "inactive",
@@ -60,8 +57,7 @@ func TestHandlerRedirectByCodeReturnsStatusPagesForUnavailableLink(t *testing.T)
 				TargetURL: "https://example.com",
 				Status:    StatusInactive,
 			},
-			wantCode:     http.StatusGone,
-			wantContains: "Link is inactive",
+			wantLocation: linkUnavailableInactivePath,
 		},
 		{
 			name: "deleted",
@@ -71,8 +67,17 @@ func TestHandlerRedirectByCodeReturnsStatusPagesForUnavailableLink(t *testing.T)
 				TargetURL: "https://example.com",
 				Status:    StatusDeleted,
 			},
-			wantCode:     http.StatusGone,
-			wantContains: "Link is deleted",
+			wantLocation: linkUnavailableDeletedPath,
+		},
+		{
+			name: "unknown unavailable",
+			link: Link{
+				ID:        "link-g",
+				Code:      "gone",
+				TargetURL: "https://example.com",
+				Status:    "paused",
+			},
+			wantLocation: linkUnavailableGonePath,
 		},
 	}
 
@@ -91,18 +96,15 @@ func TestHandlerRedirectByCodeReturnsStatusPagesForUnavailableLink(t *testing.T)
 			router := chi.NewRouter()
 			router.Get("/s/{code}", handler.RedirectByCode)
 
-			req := httptest.NewRequest(http.MethodGet, "/s/"+tt.name, nil)
+			req := httptest.NewRequest(http.MethodGet, "/s/"+tt.link.Code, nil)
 			rr := httptest.NewRecorder()
 			router.ServeHTTP(rr, req)
 
-			if rr.Code != tt.wantCode {
-				t.Fatalf("expected status %d, got %d", tt.wantCode, rr.Code)
+			if rr.Code != http.StatusFound {
+				t.Fatalf("expected status %d, got %d", http.StatusFound, rr.Code)
 			}
-			if got := rr.Header().Get("Content-Type"); !strings.Contains(got, "text/html") {
-				t.Fatalf("expected html content-type, got %s", got)
-			}
-			if !strings.Contains(rr.Body.String(), tt.wantContains) {
-				t.Fatalf("expected body to contain %q, got %s", tt.wantContains, rr.Body.String())
+			if location := rr.Header().Get("Location"); location != tt.wantLocation {
+				t.Fatalf("expected location %s, got %s", tt.wantLocation, location)
 			}
 		})
 	}
