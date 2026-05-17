@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Link } from "@/entities/link/link.types";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiButton, UiInput } from "@/shared/ui";
 import { useCreateLinkForm } from "./useCreateLinkForm";
 
@@ -8,6 +9,7 @@ const emit = defineEmits<{
 }>();
 
 const { form, errors, isSubmitting, submit } = useCreateLinkForm();
+const { t } = useI18n();
 
 const onSubmit = async () => {
   const link = await submit();
@@ -24,7 +26,7 @@ const onSubmit = async () => {
 
     <UiInput
       v-model="form.targetUrl"
-      label="Target URL"
+      :label="t('common.targetUrl')"
       type="url"
       placeholder="https://example.com/landing"
       autocomplete="url"
@@ -35,16 +37,16 @@ const onSubmit = async () => {
 
     <UiInput
       v-model="form.customAlias"
-      label="Custom alias"
+      :label="t('createLink.form.aliasLabel')"
       placeholder="spring-campaign"
-      hint="Опционально: 3-64 символа, латиница, цифры, _ и -"
+      :hint="t('createLink.form.aliasHint')"
       autocomplete="off"
       :disabled="isSubmitting"
       :error="errors.customAlias"
     />
 
     <div class="create-link-form__actions">
-      <UiButton type="submit" size="lg" :loading="isSubmitting">Создать короткую ссылку</UiButton>
+      <UiButton type="submit" size="lg" :loading="isSubmitting">{{ t("createLink.form.submit") }}</UiButton>
     </div>
   </form>
 </template>

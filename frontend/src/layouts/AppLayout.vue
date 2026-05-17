@@ -17,7 +17,7 @@ const emit = defineEmits<{
   logout: [];
 }>();
 
-const resolvedUserEmail = computed(() => props.userEmail || "user@tracklink.app");
+const resolvedUserEmail = computed(() => props.userEmail);
 
 const onLogout = () => emit("logout");
 </script>

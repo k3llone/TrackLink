@@ -20,6 +20,7 @@ import {
 import CopyShortUrlButton from "@/features/link-actions/CopyShortUrlButton.vue";
 import DeleteLinkButton from "@/features/link-actions/DeleteLinkButton.vue";
 import UpdateLinkStatusButton from "@/features/link-actions/UpdateLinkStatusButton.vue";
+import { useI18n } from "@/shared/composables/useI18n";
 import { ROUTES } from "@/shared/lib/routes/paths";
 import {
   UiPageHeader,
@@ -32,6 +33,7 @@ import { ClicksTimeChart } from "@/widgets/analytics-chart";
 
 const route = useRoute();
 const router = useRouter();
+const { formatDateTime, formatNumber, t } = useI18n();
 
 const linkId = computed(() => {
   const rawId = route.params.id;
@@ -48,80 +50,63 @@ const analyticsErrorMessage = ref("");
 const selectedPeriod = ref<AnalyticsPeriodValue>(DEFAULT_ANALYTICS_PERIOD);
 let analyticsRequestId = 0;
 
-const clicksColumns: UiTableColumn[] = [
-  { key: "clickedAt", label: "Время", width: "24%" },
-  { key: "referrer", label: "Источник", width: "30%" },
-  { key: "userAgent", label: "User Agent", width: "46%" },
-];
-
-const numberFormatter = new Intl.NumberFormat("ru-RU");
-const dateTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const clicksColumns = computed<UiTableColumn[]>(() => [
+  { key: "clickedAt", label: t("analytics.table.clickedAt"), width: "24%" },
+  { key: "referrer", label: t("analytics.table.referrer"), width: "30%" },
+  { key: "userAgent", label: t("common.userAgent"), width: "46%" },
+]);
 
 const isApiClientError = (error: unknown): error is ApiClientError =>
   error instanceof Error && error.name === "ApiClientError" && "status" in error;
 
 const currentGroupBy = computed(() => getAnalyticsPeriodOption(selectedPeriod.value).groupBy);
-const totalClicks = computed(() => numberFormatter.format(analytics.value?.totalClicks ?? link.value?.totalClicks ?? 0));
-const clicksLast24h = computed(() => numberFormatter.format(analytics.value?.clicksLast24h ?? 0));
+const totalClicks = computed(() => formatNumber(analytics.value?.totalClicks ?? link.value?.totalClicks ?? 0));
+const clicksLast24h = computed(() => formatNumber(analytics.value?.clicksLast24h ?? 0));
 const pageSubtitle = computed(() => {
   if (link.value) {
-    return `Подробная статистика переходов по ссылке ${link.value.shortUrl}.`;
+    return t("analytics.page.subtitleWithUrl", { shortUrl: link.value.shortUrl });
   }
 
-  return linkId.value ? `Подробная статистика переходов по ссылке ${linkId.value}.` : "Ссылка не выбрана.";
+  return linkId.value
+    ? t("analytics.page.subtitleWithId", { linkId: linkId.value })
+    : t("analytics.page.subtitleNoLink");
 });
 
 const lastClickedAt = computed(() => {
   const value = analytics.value?.lastClickedAt ?? link.value?.lastClickedAt;
 
   if (!value) {
-    return "Переходов еще не было";
+    return t("analytics.metrics.noClicks");
   }
 
   return formatDateTime(value);
 });
 
-const formatDateTime = (value: string) => {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return dateTimeFormatter.format(date);
-};
-
 const formatSource = (value?: string | null) => {
   const source = value?.trim();
-  return source || "Прямой переход";
+  return source || t("common.directVisit");
 };
 
 const formatUserAgent = (value?: string | null) => {
   const userAgent = value?.trim();
-  return userAgent || "Не определен";
+  return userAgent || t("common.unknown");
 };
 
 const getErrorMessage = (error: unknown) => {
   if (isApiClientError(error)) {
     if (error.status === 401) {
-      return "Сессия недействительна. Войдите заново, чтобы открыть аналитику ссылки.";
+      return t("analytics.error.unauthorized");
     }
 
     if (error.status === 404) {
-      return "Ссылка не найдена или недоступна для просмотра.";
+      return t("analytics.error.notFound");
     }
   }
 
-  return "Не удалось загрузить аналитику ссылки. Проверьте соединение и повторите попытку.";
+  return t("analytics.error.failed");
 };
 
-const getLinkNotFoundMessage = () => "Ссылка не найдена или недоступна для управления.";
+const getLinkNotFoundMessage = () => t("analytics.notFound");
 
 const loadAnalyticsSeries = async () => {
   if (!linkId.value || isAnalyticsLoading.value) {
@@ -211,10 +196,10 @@ onMounted(() => {
 <template>
   <section class="link-analytics-page">
     <UiPageHeader
-      title="Аналитика ссылки"
+      :title="t('analytics.page.title')"
       :subtitle="pageSubtitle"
       :back-to="ROUTES.dashboard"
-      back-label="Dashboard"
+      :back-label="t('common.dashboard')"
     >
       <template #actions>
         <div v-if="link" class="link-analytics-page__actions">
@@ -234,38 +219,38 @@ onMounted(() => {
     <UiPageState
       v-if="isLoading && !link"
       type="loading"
-      title="Загружаем аналитику"
-      description="Получаем основные метрики и последние переходы."
+      :title="t('analytics.loading.title')"
+      :description="t('analytics.loading.description')"
     />
 
     <UiPageState
       v-else-if="errorMessage"
       type="error"
-      title="Аналитика недоступна"
+      :title="t('analytics.unavailable.title')"
       :description="errorMessage"
-      action-text="Повторить"
+      :action-text="t('common.retry')"
       @action="loadAnalytics"
     />
 
     <UiPageState
       v-else-if="!linkId"
       type="not-found"
-      title="Ссылка не выбрана"
-      description="Откройте аналитику из списка ссылок на dashboard."
+      :title="t('analytics.noLink.title')"
+      :description="t('analytics.noLink.description')"
       :action-to="ROUTES.dashboard"
-      action-text="Вернуться на dashboard"
+      :action-text="t('analytics.noLink.action')"
     />
 
     <div v-else-if="link" class="link-analytics-page__content">
-      <section class="link-analytics-page__summary" aria-label="Основные метрики">
-        <UiStatCard title="Всего переходов" :value="totalClicks" />
-        <UiStatCard title="Переходы за 24 часа" :value="clicksLast24h" />
-        <UiStatCard title="Последний переход" :value="lastClickedAt" />
+      <section class="link-analytics-page__summary" :aria-label="t('analytics.metrics.aria')">
+        <UiStatCard :title="t('analytics.metrics.totalClicks')" :value="totalClicks" />
+        <UiStatCard :title="t('analytics.metrics.clicksLast24h')" :value="clicksLast24h" />
+        <UiStatCard :title="t('analytics.metrics.lastClick')" :value="lastClickedAt" />
       </section>
 
       <section class="link-analytics-page__statistics" aria-labelledby="link-analytics-statistics-title">
         <div class="link-analytics-page__section-header">
-          <h2 id="link-analytics-statistics-title" class="link-analytics-page__section-title">Статистика</h2>
+          <h2 id="link-analytics-statistics-title" class="link-analytics-page__section-title">{{ t("analytics.statistics.title") }}</h2>
           <AnalyticsPeriodPicker
             v-model="selectedPeriod"
             :loading="isAnalyticsLoading"
@@ -284,15 +269,15 @@ onMounted(() => {
 
       <section class="link-analytics-page__clicks" aria-labelledby="link-analytics-clicks-title">
         <div class="link-analytics-page__section-header">
-          <h2 id="link-analytics-clicks-title" class="link-analytics-page__section-title">Последние переходы</h2>
+          <h2 id="link-analytics-clicks-title" class="link-analytics-page__section-title">{{ t("analytics.recentClicks.title") }}</h2>
         </div>
 
-        <UiTable :columns="clicksColumns" :rows="recentClicks" empty-text="Переходов пока нет.">
+        <UiTable :columns="clicksColumns" :rows="recentClicks" :empty-text="t('analytics.recentClicks.emptyText')">
           <template #empty>
             <UiPageState
               type="empty"
-              title="Переходов пока нет"
-              description="Последние переходы появятся после первых открытий короткой ссылки."
+              :title="t('analytics.recentClicks.emptyTitle')"
+              :description="t('analytics.recentClicks.emptyDescription')"
             />
           </template>
 

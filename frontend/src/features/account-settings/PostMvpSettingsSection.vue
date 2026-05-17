@@ -1,21 +1,24 @@
 <script setup lang="ts">
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiButton, UiStatusBadge } from "@/shared/ui";
+
+const { t } = useI18n();
 </script>
 
 <template>
   <section class="post-mvp-settings" aria-labelledby="post-mvp-settings-title">
     <div class="post-mvp-settings__copy">
       <div class="post-mvp-settings__heading">
-        <h2 id="post-mvp-settings-title" class="post-mvp-settings__title">Account Tier</h2>
-        <UiStatusBadge status="pending" label="Post-MVP" />
+        <h2 id="post-mvp-settings-title" class="post-mvp-settings__title">{{ t("settings.tier.title") }}</h2>
+        <UiStatusBadge status="pending" :label="t('common.postMvp')" />
       </div>
-      <p class="post-mvp-settings__subtitle">Plan and limit management will be connected after the backend contract.</p>
+      <p class="post-mvp-settings__subtitle">{{ t("settings.tier.subtitle") }}</p>
     </div>
 
     <div class="post-mvp-settings__actions">
-      <span class="post-mvp-settings__tier">Free</span>
-      <UiButton size="sm" disabled title="Upgrade flow is planned for a later release">
-        Upgrade
+      <span class="post-mvp-settings__tier">{{ t("common.free") }}</span>
+      <UiButton size="sm" disabled :title="t('settings.tier.upgradeTitle')">
+        {{ t("common.upgrade") }}
       </UiButton>
     </div>
   </section>

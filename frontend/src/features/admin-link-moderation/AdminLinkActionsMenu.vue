@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import type { AdminLink } from "@/api/admin";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiButton } from "@/shared/ui";
 import BlockLinkButton from "./BlockLinkButton.vue";
 import UnblockLinkButton from "./UnblockLinkButton.vue";
@@ -18,6 +19,7 @@ const root = ref<HTMLElement | null>(null);
 const menu = ref<HTMLElement | null>(null);
 const isOpen = ref(false);
 const menuStyle = ref<Record<string, string>>({});
+const { t } = useI18n();
 
 const close = () => {
   isOpen.value = false;
@@ -124,7 +126,7 @@ onBeforeUnmount(() => {
       variant="ghost"
       size="sm"
       class="admin-link-actions-menu__trigger"
-      aria-label="Открыть действия со ссылкой"
+      :aria-label="t('admin.actions.open')"
       :aria-expanded="isOpen"
       @click.stop="toggle"
     >
@@ -186,5 +188,4 @@ onBeforeUnmount(() => {
   background: var(--tl-color-white);
   box-shadow: 0 12px 28px rgb(20 16 38 / 16%);
 }
-
 </style>

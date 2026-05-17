@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, watch } from "vue";
+import { useI18n } from "@/shared/composables/useI18n";
 
 type ModalWidth = "sm" | "md" | "lg";
 
@@ -27,6 +28,7 @@ const emit = defineEmits<{
 }>();
 
 const isOpen = computed(() => props.modelValue);
+const { t } = useI18n();
 
 const closeModal = () => {
   emit("update:modelValue", false);
@@ -66,7 +68,7 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <div v-if="isOpen" class="ui-modal">
-      <button type="button" class="ui-modal__overlay" aria-label="Close modal" @click="onOverlayClick" />
+      <button type="button" class="ui-modal__overlay" :aria-label="t('common.closeModal')" @click="onOverlayClick" />
       <section class="ui-modal__dialog" :class="`ui-modal__dialog--${width}`" role="dialog" aria-modal="true">
         <header v-if="title || description" class="ui-modal__header">
           <h3 v-if="title" class="ui-modal__title">{{ title }}</h3>

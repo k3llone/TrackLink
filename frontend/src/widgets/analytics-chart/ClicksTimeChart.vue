@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { AnalyticsGroupBy, TimeSeriesPoint } from "@/entities/analytics/analytics.types";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiPageState } from "@/shared/ui";
 import { buildClicksChartData } from "./chartData";
 
@@ -21,13 +22,14 @@ const emit = defineEmits<{
   retry: [];
 }>();
 
+const { t } = useI18n();
 const safeSeries = computed(() => props.series ?? []);
 const chartData = computed(() => buildClicksChartData(safeSeries.value, props.groupBy));
 const hasError = computed(() => Boolean(props.error?.trim()));
 const hasClicks = computed(() => safeSeries.value.some((point) => Number.isFinite(point.clicks) && point.clicks > 0));
 const isEmpty = computed(() => !safeSeries.value.length || !hasClicks.value);
-const periodLabel = computed(() => (props.groupBy === "hour" ? "по часам" : "по дням"));
-const ariaLabel = computed(() => `График переходов ${periodLabel.value}`);
+const periodLabel = computed(() => (props.groupBy === "hour" ? t("analytics.chart.periodHours") : t("analytics.chart.periodDays")));
+const ariaLabel = computed(() => t("analytics.chart.aria", { period: periodLabel.value }));
 
 const onRetry = () => emit("retry");
 </script>
@@ -36,32 +38,32 @@ const onRetry = () => emit("retry");
   <section class="clicks-time-chart" aria-labelledby="clicks-time-chart-title">
     <header class="clicks-time-chart__header">
       <div class="clicks-time-chart__title-group">
-        <h3 id="clicks-time-chart-title" class="clicks-time-chart__title">Динамика переходов</h3>
-        <p class="clicks-time-chart__subtitle">Статистика переходов {{ periodLabel }}.</p>
+        <h3 id="clicks-time-chart-title" class="clicks-time-chart__title">{{ t("analytics.chart.title") }}</h3>
+        <p class="clicks-time-chart__subtitle">{{ t("analytics.chart.subtitle", { period: periodLabel }) }}</p>
       </div>
     </header>
 
     <UiPageState
       v-if="loading"
       type="loading"
-      title="Загружаем график"
-      description="Получаем статистику переходов за выбранный период."
+      :title="t('analytics.chart.loadingTitle')"
+      :description="t('analytics.chart.loadingDescription')"
     />
 
     <UiPageState
       v-else-if="hasError"
       type="error"
-      title="График недоступен"
-      :description="error || 'Не удалось загрузить статистику переходов.'"
-      action-text="Повторить"
+      :title="t('analytics.chart.errorTitle')"
+      :description="error || t('analytics.chart.errorFallback')"
+      :action-text="t('common.retry')"
       @action="onRetry"
     />
 
     <UiPageState
       v-else-if="isEmpty"
       type="empty"
-      title="Переходов за период нет"
-      description="Когда по ссылке появятся переходы, здесь будет отображаться динамика по времени."
+      :title="t('analytics.chart.emptyTitle')"
+      :description="t('analytics.chart.emptyDescription')"
     />
 
     <div v-else class="clicks-time-chart__scroll">

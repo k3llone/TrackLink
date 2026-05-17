@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { AdminLink } from "@/api/admin";
 import type { LinkStatus, Pagination } from "@/entities/link/link.types";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiButton, UiPageState, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
 import AdminLinkActionsMenu from "./AdminLinkActionsMenu.vue";
 
@@ -28,28 +29,22 @@ const emit = defineEmits<{
   retry: [];
 }>();
 
-const columns: UiTableColumn[] = [
-  { key: "shortUrl", label: "Short URL", width: "18%" },
-  { key: "targetUrl", label: "Target URL", width: "25%" },
-  { key: "owner", label: "Owner", width: "18%" },
-  { key: "status", label: "Статус", width: "12%" },
-  { key: "totalClicks", label: "Переходы", width: "10%", align: "right" },
-  { key: "createdAt", label: "Создана", width: "12%" },
-];
+const { formatDate, formatNumber, t } = useI18n();
 
-const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-});
+const columns = computed<UiTableColumn[]>(() => [
+  { key: "shortUrl", label: t("common.shortUrl"), width: "18%" },
+  { key: "targetUrl", label: t("common.targetUrl"), width: "25%" },
+  { key: "owner", label: t("common.owner"), width: "18%" },
+  { key: "status", label: t("common.status"), width: "12%" },
+  { key: "totalClicks", label: t("common.clicks"), width: "10%", align: "right" },
+  { key: "createdAt", label: t("common.created"), width: "12%" },
+]);
 
-const numberFormatter = new Intl.NumberFormat("ru-RU");
-
-const statusLabels: Record<LinkStatus, string> = {
-  active: "Активна",
-  inactive: "Неактивна",
-  blocked: "Заблокирована",
-  deleted: "Удалена",
+const statusLabels: Record<LinkStatus, () => string> = {
+  active: () => t("link.status.active"),
+  inactive: () => t("link.status.inactive"),
+  blocked: () => t("link.status.blocked"),
+  deleted: () => t("link.status.deleted"),
 };
 
 const currentPage = computed(() => props.pagination?.page ?? 1);
@@ -58,23 +53,18 @@ const totalItems = computed(() => props.pagination?.totalItems ?? 0);
 const showPagination = computed(() => Boolean(props.pagination && totalItems.value > 0));
 const canGoPrevious = computed(() => currentPage.value > 1 && !props.loading);
 const canGoNext = computed(() => currentPage.value < totalPages.value && !props.loading);
-const totalItemsLabel = computed(() => numberFormatter.format(totalItems.value));
-const emptyStateTitle = computed(() => (props.hasSearch ? "Ссылки не найдены" : "Ссылок пока нет"));
+const totalItemsLabel = computed(() => formatNumber(totalItems.value));
+const emptyStateTitle = computed(() => (props.hasSearch ? t("admin.table.emptySearchTitle") : t("admin.table.emptyDefaultTitle")));
 const emptyStateDescription = computed(() =>
-  props.hasSearch ? "По запросу ничего не найдено." : "Административный список ссылок пуст.",
+  props.hasSearch ? t("admin.table.emptySearchDescription") : t("admin.table.emptyDefaultDescription"),
 );
-
-const formatDate = (value: string) => {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return dateFormatter.format(date);
-};
-
-const formatNumber = (value: number) => numberFormatter.format(value);
+const paginationSummary = computed(() =>
+  t("admin.table.paginationSummary", {
+    total: totalItemsLabel.value,
+    page: currentPage.value,
+    totalPages: totalPages.value,
+  }),
+);
 
 const getShortUrl = (link: AdminLink) => link.shortUrl || link.customAlias || link.code;
 const getOwner = (link: AdminLink) => link.ownerEmail?.trim() || link.ownerId;
@@ -99,19 +89,17 @@ const onLinkUpdated = (link: AdminLink) => emit("link-updated", link);
   <section class="admin-links-table" aria-labelledby="admin-links-table-title">
     <header class="admin-links-table__header">
       <div class="admin-links-table__title-group">
-        <h2 id="admin-links-table-title" class="admin-links-table__title">Ссылки</h2>
-        <p class="admin-links-table__subtitle">
-          Административный список коротких ссылок для модерации.
-        </p>
+        <h2 id="admin-links-table-title" class="admin-links-table__title">{{ t("admin.table.title") }}</h2>
+        <p class="admin-links-table__subtitle">{{ t("admin.table.subtitle") }}</p>
       </div>
     </header>
 
     <UiPageState
       v-if="errorMessage"
       type="error"
-      title="Список ссылок недоступен"
+      :title="t('admin.table.errorTitle')"
       :description="errorMessage"
-      action-text="Повторить"
+      :action-text="t('common.retry')"
       @action="onRetry"
     />
 
@@ -120,13 +108,13 @@ const onLinkUpdated = (link: AdminLink) => emit("link-updated", link);
       :columns="columns"
       :rows="links"
       :loading="loading"
-      empty-text="Ссылок пока нет."
+      :empty-text="t('admin.table.emptyText')"
     >
       <template #loading>
         <UiPageState
           type="loading"
-          title="Загружаем ссылки"
-          description="Получаем административный список коротких ссылок."
+          :title="t('admin.table.loadingTitle')"
+          :description="t('admin.table.loadingDescription')"
         />
       </template>
 
@@ -163,7 +151,7 @@ const onLinkUpdated = (link: AdminLink) => emit("link-updated", link);
           {{ getOwner(row) }}
         </span>
 
-        <UiStatusBadge v-else-if="column.key === 'status'" :status="row.status" :label="statusLabels[row.status]" />
+        <UiStatusBadge v-else-if="column.key === 'status'" :status="row.status" :label="statusLabels[row.status]()" />
 
         <span v-else-if="column.key === 'totalClicks'">{{ formatNumber(row.totalClicks) }}</span>
 
@@ -177,17 +165,15 @@ const onLinkUpdated = (link: AdminLink) => emit("link-updated", link);
       </template>
     </UiTable>
 
-    <footer v-if="showPagination" class="admin-links-table__pagination" aria-label="Пагинация списка ссылок">
-      <span class="admin-links-table__pagination-summary">
-        {{ totalItemsLabel }} ссылок · страница {{ currentPage }} из {{ totalPages }}
-      </span>
+    <footer v-if="showPagination" class="admin-links-table__pagination" :aria-label="t('admin.table.paginationAria')">
+      <span class="admin-links-table__pagination-summary">{{ paginationSummary }}</span>
 
       <div class="admin-links-table__pagination-actions">
         <UiButton variant="secondary" size="sm" type="button" :disabled="!canGoPrevious" @click="goToPreviousPage">
-          Назад
+          {{ t("common.previous") }}
         </UiButton>
         <UiButton variant="secondary" size="sm" type="button" :disabled="!canGoNext" @click="goToNextPage">
-          Вперёд
+          {{ t("common.next") }}
         </UiButton>
       </div>
     </footer>

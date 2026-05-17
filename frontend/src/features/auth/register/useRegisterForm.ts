@@ -3,6 +3,7 @@ import { useRouter } from "vue-router";
 import { registerUser } from "@/api/auth";
 import type { ApiClientError, ApiFieldErrors } from "@/api/types";
 import { useToast } from "@/shared/composables/useToast";
+import { t } from "@/shared/lib/i18n";
 import { ROUTES } from "@/shared/lib/routes/paths";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -40,21 +41,21 @@ export const useRegisterForm = () => {
     clearErrors();
 
     if (!form.email.trim()) {
-      errors.email = "Email is required";
+      errors.email = t("auth.validation.emailRequired");
     } else if (!EMAIL_PATTERN.test(form.email.trim())) {
-      errors.email = "Enter a valid email address";
+      errors.email = t("auth.validation.emailInvalid");
     }
 
     if (!form.password) {
-      errors.password = "Password is required";
+      errors.password = t("auth.validation.passwordRequired");
     } else if (form.password.length < MIN_PASSWORD_LENGTH) {
-      errors.password = `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+      errors.password = t("auth.validation.passwordMin", { min: MIN_PASSWORD_LENGTH });
     }
 
     if (!form.confirmPassword) {
-      errors.confirmPassword = "Confirm your password";
+      errors.confirmPassword = t("auth.validation.confirmPasswordRequired");
     } else if (form.confirmPassword !== form.password) {
-      errors.confirmPassword = "Passwords do not match";
+      errors.confirmPassword = t("auth.validation.passwordMismatch");
     }
 
     return !errors.email && !errors.password && !errors.confirmPassword;
@@ -82,22 +83,22 @@ export const useRegisterForm = () => {
         password: form.password,
       });
 
-      toast.success("Account created. Please sign in.", "Registration complete");
+      toast.success(t("auth.register.successMessage"), t("auth.register.successTitle"));
       await router.push(ROUTES.login);
 
       return true;
     } catch (error: unknown) {
       if (isApiClientError(error)) {
         if (error.status === 409) {
-          errors.email = "Email already exists";
+          errors.email = t("auth.register.emailExists");
         } else if (error.status === 400 || error.status === 422) {
           applyFieldErrors(error.fields);
-          errors.form = hasFieldErrors(error.fields) ? "" : "Проверьте корректность email и пароля.";
+          errors.form = hasFieldErrors(error.fields) ? "" : t("auth.register.validationFailed");
         } else {
-          errors.form = "Не удалось создать аккаунт. Попробуйте еще раз позже.";
+          errors.form = t("auth.register.submitFailed");
         }
       } else {
-        errors.form = "Не удалось создать аккаунт. Проверьте соединение и попробуйте снова.";
+        errors.form = t("auth.register.networkFailed");
       }
 
       return false;

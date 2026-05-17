@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { useRouter } from "vue-router";
 import type { Link, LinkStatus } from "@/entities/link/link.types";
 import CopyShortUrlButton from "@/features/link-actions/CopyShortUrlButton.vue";
+import { useI18n } from "@/shared/composables/useI18n";
 import { getLinkDetailsPath, ROUTES } from "@/shared/lib/routes/paths";
 import { UiButton, UiStatusBadge } from "@/shared/ui";
 
@@ -15,17 +16,17 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
-const numberFormatter = new Intl.NumberFormat("ru-RU");
+const { formatNumber, t } = useI18n();
 
-const statusLabels: Record<LinkStatus, string> = {
-  active: "Активна",
-  inactive: "Неактивна",
-  blocked: "Заблокирована",
-  deleted: "Удалена",
+const statusLabels: Record<LinkStatus, () => string> = {
+  active: () => t("link.status.active"),
+  inactive: () => t("link.status.inactive"),
+  blocked: () => t("link.status.blocked"),
+  deleted: () => t("link.status.deleted"),
 };
 
 const shortUrl = computed(() => props.link.shortUrl || props.link.code);
-const totalClicksLabel = computed(() => numberFormatter.format(props.link.totalClicks));
+const totalClicksLabel = computed(() => formatNumber(props.link.totalClicks));
 const shouldShowTotalClicks = computed(() => typeof props.link.totalClicks === "number");
 
 const openAnalytics = () => {
@@ -45,13 +46,13 @@ const goToDashboard = () => {
   <section class="created-link-result" aria-labelledby="created-link-result-title">
     <header class="created-link-result__header">
       <div class="created-link-result__title-group">
-        <h2 id="created-link-result-title" class="created-link-result__title">Короткая ссылка создана</h2>
-        <p class="created-link-result__subtitle">Short URL готов к использованию и уже сохранён в вашем аккаунте.</p>
+        <h2 id="created-link-result-title" class="created-link-result__title">{{ t("createLink.result.title") }}</h2>
+        <p class="created-link-result__subtitle">{{ t("createLink.result.subtitle") }}</p>
       </div>
     </header>
 
     <div class="created-link-result__short-url">
-      <span class="created-link-result__label">Short URL</span>
+      <span class="created-link-result__label">{{ t("common.shortUrl") }}</span>
       <a class="created-link-result__url" :href="shortUrl" target="_blank" rel="noreferrer" :title="shortUrl">
         {{ shortUrl }}
       </a>
@@ -60,7 +61,7 @@ const goToDashboard = () => {
 
     <dl class="created-link-result__details">
       <div class="created-link-result__detail">
-        <dt>Target URL</dt>
+        <dt>{{ t("common.targetUrl") }}</dt>
         <dd>
           <a :href="link.targetUrl" target="_blank" rel="noreferrer" :title="link.targetUrl">
             {{ link.targetUrl }}
@@ -69,22 +70,22 @@ const goToDashboard = () => {
       </div>
 
       <div class="created-link-result__detail">
-        <dt>Статус</dt>
+        <dt>{{ t("common.status") }}</dt>
         <dd>
-          <UiStatusBadge :status="link.status" :label="statusLabels[link.status]" />
+          <UiStatusBadge :status="link.status" :label="statusLabels[link.status]()" />
         </dd>
       </div>
 
       <div v-if="shouldShowTotalClicks" class="created-link-result__detail">
-        <dt>Переходы</dt>
+        <dt>{{ t("common.clicks") }}</dt>
         <dd>{{ totalClicksLabel }}</dd>
       </div>
     </dl>
 
     <footer class="created-link-result__actions">
-      <UiButton type="button" @click="openAnalytics">Открыть аналитику</UiButton>
-      <UiButton variant="secondary" type="button" @click="createMore">Создать ещё</UiButton>
-      <UiButton variant="ghost" type="button" @click="goToDashboard">На dashboard</UiButton>
+      <UiButton type="button" @click="openAnalytics">{{ t("createLink.result.openAnalytics") }}</UiButton>
+      <UiButton variant="secondary" type="button" @click="createMore">{{ t("createLink.result.createMore") }}</UiButton>
+      <UiButton variant="ghost" type="button" @click="goToDashboard">{{ t("createLink.result.toDashboard") }}</UiButton>
     </footer>
   </section>
 </template>

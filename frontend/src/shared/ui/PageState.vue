@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "@/shared/composables/useI18n";
 import UiButton from "./Button.vue";
 
 type PageStateType = "loading" | "empty" | "error" | "forbidden" | "not-found";
@@ -24,16 +25,33 @@ const emit = defineEmits<{
   action: [];
 }>();
 
-const presets: Record<PageStateType, { title: string; description: string }> = {
-  loading: { title: "Loading", description: "Please wait while data is being prepared." },
-  empty: { title: "Nothing here yet", description: "No data found for this page." },
-  error: { title: "Something went wrong", description: "Please try again in a moment." },
-  forbidden: { title: "Access denied", description: "You do not have permission to view this page." },
-  "not-found": { title: "Page not found", description: "The requested page does not exist." },
+const { t } = useI18n();
+
+const presets: Record<PageStateType, { title: () => string; description: () => string }> = {
+  loading: {
+    title: () => t("pageState.loading.title"),
+    description: () => t("pageState.loading.description"),
+  },
+  empty: {
+    title: () => t("pageState.empty.title"),
+    description: () => t("pageState.empty.description"),
+  },
+  error: {
+    title: () => t("pageState.error.title"),
+    description: () => t("pageState.error.description"),
+  },
+  forbidden: {
+    title: () => t("pageState.forbidden.title"),
+    description: () => t("pageState.forbidden.description"),
+  },
+  "not-found": {
+    title: () => t("pageState.notFound.title"),
+    description: () => t("pageState.notFound.description"),
+  },
 };
 
-const resolvedTitle = computed(() => props.title || presets[props.type].title);
-const resolvedDescription = computed(() => props.description || presets[props.type].description);
+const resolvedTitle = computed(() => props.title || presets[props.type].title());
+const resolvedDescription = computed(() => props.description || presets[props.type].description());
 
 const onAction = () => emit("action");
 </script>

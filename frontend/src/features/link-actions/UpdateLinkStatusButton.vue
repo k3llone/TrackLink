@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { updateLinkStatus } from "@/api/links";
 import type { Link, UpdateLinkStatus } from "@/entities/link/link.types";
+import { useI18n } from "@/shared/composables/useI18n";
 import { useToast } from "@/shared/composables/useToast";
 import { UiButton } from "@/shared/ui";
 import { getUpdateStatusErrorMessage } from "./linkActionErrors";
@@ -28,6 +29,7 @@ const emit = defineEmits<{
 }>();
 
 const toast = useToast();
+const { t } = useI18n();
 const isUpdating = ref(false);
 
 const nextStatus = computed<UpdateLinkStatus | null>(() => {
@@ -46,23 +48,19 @@ const canUpdateStatus = computed(() => Boolean(nextStatus.value));
 const isDisabled = computed(() => props.disabled || isUpdating.value || !canUpdateStatus.value);
 const actionLabel = computed(() => {
   if (nextStatus.value === "active") {
-    return "Активировать";
+    return t("common.activate");
   }
 
   if (nextStatus.value === "inactive") {
-    return "Деактивировать";
+    return t("common.deactivate");
   }
 
-  return "Недоступно";
+  return t("linkActions.status.unavailable");
 });
-const title = computed(() =>
-  canUpdateStatus.value
-    ? actionLabel.value
-    : "Заблокированные и удаленные ссылки нельзя активировать или деактивировать",
-);
+const title = computed(() => (canUpdateStatus.value ? actionLabel.value : t("linkActions.status.blockedOrDeletedTitle")));
 
 const getSuccessMessage = (status: UpdateLinkStatus) =>
-  status === "active" ? "Ссылка активирована." : "Ссылка деактивирована.";
+  status === "active" ? t("linkActions.status.activateSuccess") : t("linkActions.status.deactivateSuccess");
 
 const onUpdateStatus = async () => {
   if (!nextStatus.value || isUpdating.value) {

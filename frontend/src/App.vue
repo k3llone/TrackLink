@@ -6,11 +6,13 @@ import AuthLayout from "@/layouts/AuthLayout.vue";
 import AppLayout from "@/layouts/AppLayout.vue";
 import { useSession } from "@/entities/session/useSession";
 import { useToast } from "@/shared/composables/useToast";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiPageState, UiToast } from "@/shared/ui";
 
 const route = useRoute();
 const session = useSession();
 const toast = useToast();
+const { t } = useI18n();
 const { isLoggingOut, logout } = useLogout();
 
 const layoutComponent = computed(() => (route.meta.layout === "auth" ? AuthLayout : AppLayout));
@@ -24,8 +26,8 @@ const handleLogout = () => logout();
     v-if="isSessionLoading"
     class="app-session-state"
     type="loading"
-    title="Checking session"
-    description="Please wait while access is verified."
+    :title="t('session.checking.title')"
+    :description="t('session.checking.description')"
   />
   <component :is="layoutComponent" v-else :user-email="session.user.value?.email" :loading="isLoggingOut" @logout="handleLogout">
     <RouterView />

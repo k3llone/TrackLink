@@ -1,4 +1,5 @@
 import type { AnalyticsGroupBy, TimeSeriesPoint } from "@/entities/analytics/analytics.types";
+import { formatDate, formatDateTime, formatNumber, t } from "@/shared/lib/i18n";
 
 const CHART_WIDTH = 760;
 const CHART_HEIGHT = 300;
@@ -9,23 +10,6 @@ const PADDING = {
   left: 56,
 };
 const MAX_X_LABELS = 6;
-
-const numberFormatter = new Intl.NumberFormat("ru-RU");
-const hourFormatter = new Intl.DateTimeFormat("ru-RU", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-const dayFormatter = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "short",
-});
-const fullDateFormatter = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 export interface ClicksChartPoint {
   key: string;
@@ -79,21 +63,21 @@ const getPointY = (clicks: number, maxClicks: number) => {
   return end - ratio * (end - start);
 };
 
-const formatNumber = (value: number) => numberFormatter.format(value);
-
 const formatDateLabel = (value: string, groupBy: AnalyticsGroupBy) => {
   const date = parseDate(value);
 
   if (!date) {
-    return "—";
+    return t("common.notAvailableSymbol");
   }
 
-  return groupBy === "hour" ? hourFormatter.format(date) : dayFormatter.format(date);
+  return groupBy === "hour"
+    ? formatDate(date, { hour: "2-digit", minute: "2-digit" })
+    : formatDate(date, { day: "2-digit", month: "short" });
 };
 
 const formatTooltipDate = (value: string) => {
   const date = parseDate(value);
-  return date ? fullDateFormatter.format(date) : "Дата не определена";
+  return date ? formatDateTime(date) : t("analytics.chart.unknownDate");
 };
 
 const getVisibleLabelIndexes = (pointsCount: number) => {
@@ -156,7 +140,10 @@ export const buildClicksChartData = (
       y: getPointY(clicks, maxClicks),
       clicks,
       xLabel,
-      tooltip: `${formatTooltipDate(point.periodStart)}: ${formatNumber(clicks)}`,
+      tooltip: t("analytics.chart.tooltip", {
+        date: formatTooltipDate(point.periodStart),
+        clicks: formatNumber(clicks),
+      }),
     };
   });
 
@@ -168,7 +155,7 @@ export const buildClicksChartData = (
     points,
     xAxisLabels: getVisibleLabelIndexes(points.length).map((index) => ({
       key: `x-${index}`,
-      label: points[index]?.xLabel ?? "—",
+      label: points[index]?.xLabel ?? t("common.notAvailableSymbol"),
       x: points[index]?.x,
     })),
     yAxisLabels: buildYAxisLabels(maxClicks),

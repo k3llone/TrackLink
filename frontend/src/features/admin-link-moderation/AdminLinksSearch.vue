@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from "vue";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiInput } from "@/shared/ui";
 
 const props = withDefaults(
@@ -15,6 +16,7 @@ const emit = defineEmits<{
   change: [q: string];
 }>();
 
+const { t } = useI18n();
 const searchValue = ref(props.q);
 let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -52,12 +54,12 @@ onBeforeUnmount(clearPendingChange);
 </script>
 
 <template>
-  <section class="admin-links-search" aria-label="Поиск ссылок">
+  <section class="admin-links-search" :aria-label="t('admin.search.aria')">
     <UiInput
       v-model="searchValue"
       type="search"
-      label="Поиск"
-      placeholder="UUID, short code или alias"
+      :label="t('common.search')"
+      :placeholder="t('admin.search.placeholder')"
       autocomplete="off"
     />
   </section>

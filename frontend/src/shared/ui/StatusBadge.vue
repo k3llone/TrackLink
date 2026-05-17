@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "@/shared/composables/useI18n";
 
 type StatusType = "active" | "inactive" | "blocked" | "deleted" | "pending";
 
@@ -8,15 +9,17 @@ const props = defineProps<{
   label?: string;
 }>();
 
-const fallbackLabel: Record<StatusType, string> = {
-  active: "Active",
-  inactive: "Inactive",
-  blocked: "Blocked",
-  deleted: "Deleted",
-  pending: "Pending",
+const { t } = useI18n();
+
+const fallbackLabel: Record<StatusType, () => string> = {
+  active: () => t("link.status.active"),
+  inactive: () => t("link.status.inactive"),
+  blocked: () => t("link.status.blocked"),
+  deleted: () => t("link.status.deleted"),
+  pending: () => t("status.pending"),
 };
 
-const displayLabel = computed(() => props.label || fallbackLabel[props.status]);
+const displayLabel = computed(() => props.label || fallbackLabel[props.status]());
 </script>
 
 <template>

@@ -1,4 +1,5 @@
 import type { ApiClientError } from "@/api/types";
+import { t } from "@/shared/lib/i18n";
 
 const isApiClientError = (error: unknown): error is ApiClientError =>
   error instanceof Error && error.name === "ApiClientError" && "status" in error;
@@ -6,43 +7,43 @@ const isApiClientError = (error: unknown): error is ApiClientError =>
 export const getUpdateStatusErrorMessage = (error: unknown) => {
   if (isApiClientError(error)) {
     if (error.status === 403) {
-      return "У вас нет доступа к изменению статуса этой ссылки.";
+      return t("linkActions.status.error.forbidden");
     }
 
     if (error.status === 404) {
-      return "Ссылка не найдена или уже недоступна.";
+      return t("linkActions.status.error.notFound");
     }
 
     if (error.status === 409) {
-      return "Этот статус нельзя изменить. Заблокированные и удаленные ссылки недоступны для активации.";
+      return t("linkActions.status.error.conflict");
     }
 
     if (error.status >= 500) {
-      return "Сервер временно недоступен. Повторите попытку позже.";
+      return t("linkActions.status.error.server");
     }
   }
 
-  return "Не удалось изменить статус ссылки. Проверьте соединение и повторите попытку.";
+  return t("linkActions.status.error.failed");
 };
 
 export const getDeleteLinkErrorMessage = (error: unknown) => {
   if (isApiClientError(error)) {
     if (error.status === 403) {
-      return "У вас нет доступа к удалению этой ссылки.";
+      return t("linkActions.delete.error.forbidden");
     }
 
     if (error.status === 404) {
-      return "Ссылка не найдена или уже удалена.";
+      return t("linkActions.delete.error.notFound");
     }
 
     if (error.status === 409) {
-      return "Ссылку нельзя удалить в текущем состоянии.";
+      return t("linkActions.delete.error.conflict");
     }
 
     if (error.status >= 500) {
-      return "Сервер временно недоступен. Повторите попытку позже.";
+      return t("linkActions.delete.error.server");
     }
   }
 
-  return "Не удалось удалить ссылку. Проверьте соединение и повторите попытку.";
+  return t("linkActions.delete.error.failed");
 };

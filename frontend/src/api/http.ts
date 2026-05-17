@@ -1,13 +1,14 @@
 import type { ApiClientError, ApiErrorPayload } from "@/api/types";
 import { env } from "@/shared/config/env";
+import { t, type MessageKey } from "@/shared/lib/i18n";
 
-const DEFAULT_ERROR_MESSAGES: Record<number, string> = {
-  400: "Проверьте корректность введенных данных.",
-  401: "Сессия недействительна. Выполните вход снова.",
-  403: "У вас нет прав для этого действия.",
-  404: "Запрашиваемый ресурс не найден.",
-  409: "Конфликт данных. Попробуйте изменить запрос.",
-  500: "Внутренняя ошибка сервера. Повторите попытку позже.",
+const DEFAULT_ERROR_KEYS: Record<number, MessageKey> = {
+  400: "api.error.400",
+  401: "api.error.401",
+  403: "api.error.403",
+  404: "api.error.404",
+  409: "api.error.409",
+  500: "api.error.500",
 };
 
 type RequestOptions = Omit<RequestInit, "body"> & {
@@ -15,7 +16,8 @@ type RequestOptions = Omit<RequestInit, "body"> & {
 };
 
 function getFallbackMessage(status: number): string {
-  return DEFAULT_ERROR_MESSAGES[status] ?? "Не удалось выполнить запрос.";
+  const key = DEFAULT_ERROR_KEYS[status] ?? "api.error.default";
+  return t(key);
 }
 
 async function parseJson<T>(response: Response): Promise<T | null> {

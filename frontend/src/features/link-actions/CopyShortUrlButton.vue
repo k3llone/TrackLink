@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useI18n } from "@/shared/composables/useI18n";
 import { useToast } from "@/shared/composables/useToast";
 import { UiButton } from "@/shared/ui";
 
@@ -18,15 +19,17 @@ const props = withDefaults(
     variant: "ghost",
     size: "sm",
     disabled: false,
-    label: "Копировать",
+    label: "",
   },
 );
 
 const toast = useToast();
+const { t } = useI18n();
 const isCopying = ref(false);
 
 const valueToCopy = computed(() => props.shortUrl.trim());
 const isDisabled = computed(() => props.disabled || isCopying.value || !valueToCopy.value);
+const buttonLabel = computed(() => props.label || t("common.copy"));
 
 const fallbackCopy = (value: string) => {
   const textarea = document.createElement("textarea");
@@ -63,9 +66,9 @@ const copyShortUrl = async () => {
       fallbackCopy(valueToCopy.value);
     }
 
-    toast.success("Short URL скопирован.");
+    toast.success(t("linkActions.copy.success"));
   } catch {
-    toast.error("Не удалось скопировать short URL. Скопируйте его вручную.");
+    toast.error(t("linkActions.copy.error"));
   } finally {
     isCopying.value = false;
   }
@@ -81,6 +84,6 @@ const copyShortUrl = async () => {
     :loading="isCopying"
     @click.stop="copyShortUrl"
   >
-    {{ label }}
+    {{ buttonLabel }}
   </UiButton>
 </template>

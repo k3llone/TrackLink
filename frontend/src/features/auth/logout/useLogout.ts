@@ -4,6 +4,7 @@ import { logoutUser } from "@/api/auth";
 import type { ApiClientError } from "@/api/types";
 import { useSession } from "@/entities/session/useSession";
 import { useToast } from "@/shared/composables/useToast";
+import { t } from "@/shared/lib/i18n";
 import { ROUTES } from "@/shared/lib/routes/paths";
 
 const isApiClientError = (error: unknown): error is ApiClientError =>
@@ -38,7 +39,7 @@ export const useLogout = () => {
         return true;
       }
 
-      toast.error("Не удалось завершить сессию. Проверьте соединение и повторите попытку.");
+      toast.error(t("session.networkError"));
       return false;
     } finally {
       isLoggingOut.value = false;

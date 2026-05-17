@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiButton, UiSwitch } from "@/shared/ui";
+
+const { t } = useI18n();
 </script>
 
 <template>
@@ -15,8 +18,8 @@ import { UiButton, UiSwitch } from "@/shared/ui";
       </span>
 
       <div class="security-actions__title-group">
-        <h2 id="security-actions-title" class="security-actions__title">Security Settings</h2>
-        <p class="security-actions__subtitle">Manage your account security</p>
+        <h2 id="security-actions-title" class="security-actions__title">{{ t("settings.security.title") }}</h2>
+        <p class="security-actions__subtitle">{{ t("settings.security.subtitle") }}</p>
       </div>
     </header>
 
@@ -24,42 +27,42 @@ import { UiButton, UiSwitch } from "@/shared/ui";
       <div class="security-actions__row">
         <div class="security-actions__copy">
           <div class="security-actions__row-heading">
-            <h3 class="security-actions__row-title">Two-Factor Authentication</h3>
-            <span class="security-actions__tag">Post-MVP</span>
+            <h3 class="security-actions__row-title">{{ t("settings.security.twoFactor") }}</h3>
+            <span class="security-actions__tag">{{ t("common.postMvp") }}</span>
           </div>
-          <p class="security-actions__row-subtitle">Add an extra layer of security to your account</p>
+          <p class="security-actions__row-subtitle">{{ t("settings.security.twoFactorDescription") }}</p>
         </div>
 
         <UiSwitch
           class="security-actions__switch"
           :model-value="false"
           disabled
-          aria-label="Two-factor authentication is planned for a later release"
+          :aria-label="t('settings.security.twoFactorAria')"
         />
       </div>
 
       <div class="security-actions__sessions">
         <div class="security-actions__copy">
-          <h3 class="security-actions__row-title">Active Sessions</h3>
-          <p class="security-actions__row-subtitle">Manage your active login sessions</p>
+          <h3 class="security-actions__row-title">{{ t("settings.security.sessions") }}</h3>
+          <p class="security-actions__row-subtitle">{{ t("settings.security.sessionsDescription") }}</p>
         </div>
 
         <div class="security-actions__row security-actions__row--session">
           <div class="security-actions__copy">
             <div class="security-actions__row-heading">
-              <h4 class="security-actions__session-title">Current Session</h4>
-              <span class="security-actions__tag">Post-MVP</span>
+              <h4 class="security-actions__session-title">{{ t("settings.security.currentSession") }}</h4>
+              <span class="security-actions__tag">{{ t("common.postMvp") }}</span>
             </div>
-            <p class="security-actions__row-subtitle">Last active: Just now</p>
+            <p class="security-actions__row-subtitle">{{ t("settings.security.lastActiveNow") }}</p>
           </div>
 
           <UiButton
             class="security-actions__deactivate"
             size="sm"
             disabled
-            title="Session management is planned for a later release"
+            :title="t('settings.security.deactivateTitle')"
           >
-            Deactivate
+            {{ t("common.deactivate") }}
           </UiButton>
         </div>
       </div>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { UserRole } from "@/api/auth";
+import { useI18n } from "@/shared/composables/useI18n";
 import { UiButton, UiInput, UiStatusBadge } from "@/shared/ui";
 
 const props = defineProps<{
@@ -9,6 +10,7 @@ const props = defineProps<{
   createdAt?: string;
 }>();
 
+const { formatDate, t } = useI18n();
 const maskedPassword = "********";
 
 const formattedCreatedAt = computed(() => {
@@ -16,20 +18,11 @@ const formattedCreatedAt = computed(() => {
     return "";
   }
 
-  const createdDate = new Date(props.createdAt);
-
-  if (Number.isNaN(createdDate.getTime())) {
-    return "";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(createdDate);
+  return formatDate(props.createdAt);
 });
 
 const roleBadgeStatus = computed<"active" | "inactive">(() => (props.role === "admin" ? "active" : "inactive"));
+const roleLabel = computed(() => (props.role === "admin" ? t("user.role.admin") : t("user.role.customer")));
 </script>
 
 <template>
@@ -45,39 +38,39 @@ const roleBadgeStatus = computed<"active" | "inactive">(() => (props.role === "a
       </span>
 
       <div class="profile-info__title-group">
-        <h2 id="profile-info-title" class="profile-info__title">Profile Information</h2>
-        <p class="profile-info__subtitle">Manage your account details</p>
+        <h2 id="profile-info-title" class="profile-info__title">{{ t("settings.profile.title") }}</h2>
+        <p class="profile-info__subtitle">{{ t("settings.profile.subtitle") }}</p>
       </div>
     </header>
 
-    <div class="profile-info__meta" aria-label="Account metadata">
+    <div class="profile-info__meta" :aria-label="t('settings.profile.metadataAria')">
       <div class="profile-info__meta-item">
-        <span class="profile-info__meta-label">Role</span>
-        <UiStatusBadge :status="roleBadgeStatus" :label="role" />
+        <span class="profile-info__meta-label">{{ t("settings.profile.role") }}</span>
+        <UiStatusBadge :status="roleBadgeStatus" :label="roleLabel" />
       </div>
 
       <div v-if="formattedCreatedAt" class="profile-info__meta-item">
-        <span class="profile-info__meta-label">Created</span>
+        <span class="profile-info__meta-label">{{ t("settings.profile.created") }}</span>
         <strong class="profile-info__meta-value">{{ formattedCreatedAt }}</strong>
       </div>
     </div>
 
     <div class="profile-info__fields">
-      <UiInput :model-value="email" label="Email" type="email" autocomplete="email" readonly />
+      <UiInput :model-value="email" :label="t('common.email')" type="email" autocomplete="email" readonly />
 
       <UiInput
         :model-value="maskedPassword"
-        label="Password"
+        :label="t('common.password')"
         type="text"
         autocomplete="current-password"
         readonly
       />
 
       <div class="profile-info__action">
-        <UiButton size="sm" disabled title="Password change is planned for a later auth feature">
-          Change password
+        <UiButton size="sm" disabled :title="t('settings.profile.changePasswordTitle')">
+          {{ t("settings.profile.changePassword") }}
         </UiButton>
-        <p class="profile-info__hint">Password change will be available after the dedicated auth flow is implemented.</p>
+        <p class="profile-info__hint">{{ t("settings.profile.changePasswordHint") }}</p>
       </div>
     </div>
   </section>
