@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import type { AdminLink } from "@/api/admin";
 import { UiButton } from "@/shared/ui";
 import BlockLinkButton from "./BlockLinkButton.vue";
@@ -15,18 +15,69 @@ const emit = defineEmits<{
 }>();
 
 const root = ref<HTMLElement | null>(null);
+const menu = ref<HTMLElement | null>(null);
 const isOpen = ref(false);
+const menuStyle = ref<Record<string, string>>({});
 
 const close = () => {
   isOpen.value = false;
 };
 
+const updateMenuPosition = () => {
+  if (!isOpen.value || !root.value) {
+    return;
+  }
+
+  const rect = root.value.getBoundingClientRect();
+  const gap = 6;
+  const viewportMargin = 12;
+  const menuWidth = menu.value?.offsetWidth ?? 190;
+  const menuHeight = menu.value?.offsetHeight ?? 90;
+  const left = Math.max(
+    viewportMargin,
+    Math.min(window.innerWidth - menuWidth - viewportMargin, rect.right - menuWidth),
+  );
+  const topBelow = rect.bottom + gap;
+  const top =
+    topBelow + menuHeight > window.innerHeight - viewportMargin
+      ? Math.max(viewportMargin, rect.top - menuHeight - gap)
+      : topBelow;
+
+  menuStyle.value = {
+    left: `${Math.round(left)}px`,
+    top: `${Math.round(top)}px`,
+    visibility: "visible",
+  };
+};
+
+const open = async () => {
+  menuStyle.value = {
+    left: "0",
+    top: "0",
+    visibility: "hidden",
+  };
+  isOpen.value = true;
+  await nextTick();
+  updateMenuPosition();
+};
+
 const toggle = () => {
-  isOpen.value = !isOpen.value;
+  if (isOpen.value) {
+    close();
+    return;
+  }
+
+  void open();
 };
 
 const onDocumentClick = (event: MouseEvent) => {
-  if (!root.value?.contains(event.target as Node)) {
+  const target = event.target as Node;
+
+  if (target instanceof Element && target.closest(".ui-modal")) {
+    return;
+  }
+
+  if (!root.value?.contains(target) && !menu.value?.contains(target)) {
     close();
   }
 };
@@ -35,6 +86,10 @@ const onDocumentKeydown = (event: KeyboardEvent) => {
   if (event.key === "Escape") {
     close();
   }
+};
+
+const onViewportChange = () => {
+  updateMenuPosition();
 };
 
 const onBlocked = (link: AdminLink) => {
@@ -50,11 +105,15 @@ const onDeactivated = (link: AdminLink) => {
 onMounted(() => {
   document.addEventListener("click", onDocumentClick);
   document.addEventListener("keydown", onDocumentKeydown);
+  document.addEventListener("scroll", onViewportChange, true);
+  window.addEventListener("resize", onViewportChange);
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("click", onDocumentClick);
   document.removeEventListener("keydown", onDocumentKeydown);
+  document.removeEventListener("scroll", onViewportChange, true);
+  window.removeEventListener("resize", onViewportChange);
 });
 </script>
 
@@ -72,23 +131,32 @@ onBeforeUnmount(() => {
       ...
     </UiButton>
 
-    <div v-if="isOpen" class="admin-link-actions-menu__menu" role="menu">
-      <DeactivateLinkButton
-        :link="link"
-        variant="ghost"
-        size="sm"
-        full-width
-        @deactivated="onDeactivated"
-      />
+    <Teleport to="body">
+      <div
+        v-if="isOpen"
+        ref="menu"
+        class="admin-link-actions-menu__menu"
+        role="menu"
+        :style="menuStyle"
+        @click.stop
+      >
+        <DeactivateLinkButton
+          :link="link"
+          variant="ghost"
+          size="sm"
+          full-width
+          @deactivated="onDeactivated"
+        />
 
-      <BlockLinkButton
-        :link="link"
-        variant="ghost"
-        size="sm"
-        full-width
-        @blocked="onBlocked"
-      />
-    </div>
+        <BlockLinkButton
+          :link="link"
+          variant="ghost"
+          size="sm"
+          full-width
+          @blocked="onBlocked"
+        />
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -104,10 +172,8 @@ onBeforeUnmount(() => {
 }
 
 .admin-link-actions-menu__menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 20;
+  position: fixed;
+  z-index: 1200;
   display: flex;
   min-width: 190px;
   flex-direction: column;
