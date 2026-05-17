@@ -173,7 +173,7 @@ const onLinkUpdated = (link: AdminLink) => emit("link-updated", link);
       </template>
 
       <template #actions="{ row }">
-        <AdminLinkActionsMenu :link="row" @blocked="onLinkUpdated" @deactivated="onLinkUpdated" />
+        <AdminLinkActionsMenu :link="row" @blocked="onLinkUpdated" @unblocked="onLinkUpdated" />
       </template>
     </UiTable>
 

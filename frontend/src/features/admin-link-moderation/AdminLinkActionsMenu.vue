@@ -3,7 +3,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import type { AdminLink } from "@/api/admin";
 import { UiButton } from "@/shared/ui";
 import BlockLinkButton from "./BlockLinkButton.vue";
-import DeactivateLinkButton from "./DeactivateLinkButton.vue";
+import UnblockLinkButton from "./UnblockLinkButton.vue";
 
 defineProps<{
   link: AdminLink;
@@ -11,7 +11,7 @@ defineProps<{
 
 const emit = defineEmits<{
   blocked: [link: AdminLink];
-  deactivated: [link: AdminLink];
+  unblocked: [link: AdminLink];
 }>();
 
 const root = ref<HTMLElement | null>(null);
@@ -97,9 +97,9 @@ const onBlocked = (link: AdminLink) => {
   emit("blocked", link);
 };
 
-const onDeactivated = (link: AdminLink) => {
+const onUnblocked = (link: AdminLink) => {
   close();
-  emit("deactivated", link);
+  emit("unblocked", link);
 };
 
 onMounted(() => {
@@ -140,15 +140,17 @@ onBeforeUnmount(() => {
         :style="menuStyle"
         @click.stop
       >
-        <DeactivateLinkButton
+        <UnblockLinkButton
+          v-if="link.status === 'blocked'"
           :link="link"
           variant="ghost"
           size="sm"
           full-width
-          @deactivated="onDeactivated"
+          @unblocked="onUnblocked"
         />
 
         <BlockLinkButton
+          v-else
           :link="link"
           variant="ghost"
           size="sm"

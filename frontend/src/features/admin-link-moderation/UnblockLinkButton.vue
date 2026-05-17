@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { deactivateAdminLink, type AdminLink } from "@/api/admin";
+import { unblockAdminLink, type AdminLink } from "@/api/admin";
 import type { ApiClientError } from "@/api/types";
 import { useToast } from "@/shared/composables/useToast";
 import { UiButton } from "@/shared/ui";
@@ -25,22 +25,22 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  deactivated: [link: AdminLink];
+  unblocked: [link: AdminLink];
 }>();
 
 const toast = useToast();
-const isDeactivating = ref(false);
+const isUnblocking = ref(false);
 
 const isApiClientError = (error: unknown): error is ApiClientError =>
   error instanceof Error && error.name === "ApiClientError" && "status" in error;
 
-const canDeactivate = computed(() => props.link.status === "active");
-const isDisabled = computed(() => props.disabled || isDeactivating.value || !canDeactivate.value);
+const canUnblock = computed(() => props.link.status === "blocked");
+const isDisabled = computed(() => props.disabled || isUnblocking.value || !canUnblock.value);
 const title = computed(() =>
-  canDeactivate.value ? "Деактивировать ссылку" : "Можно деактивировать только активную ссылку.",
+  canUnblock.value ? "Разблокировать ссылку" : "Можно разблокировать только заблокированную ссылку.",
 );
 
-const getDeactivateLinkErrorMessage = (error: unknown) => {
+const getUnblockLinkErrorMessage = (error: unknown) => {
   if (isApiClientError(error)) {
     if (error.status === 401 || error.status === 403) {
       return "У вас нет доступа к административной панели.";
@@ -49,30 +49,26 @@ const getDeactivateLinkErrorMessage = (error: unknown) => {
     if (error.status === 404) {
       return "Ссылка не найдена или уже удалена.";
     }
-
-    if (error.status === 409 || error.code === "status_change_not_allowed") {
-      return "Можно деактивировать только активную ссылку.";
-    }
   }
 
-  return "Не удалось деактивировать ссылку.";
+  return "Не удалось разблокировать ссылку.";
 };
 
-const deactivate = async () => {
+const unblock = async () => {
   if (isDisabled.value) {
     return;
   }
 
-  isDeactivating.value = true;
+  isUnblocking.value = true;
 
   try {
-    const updatedLink = await deactivateAdminLink(props.link.id);
-    toast.success("Ссылка деактивирована.");
-    emit("deactivated", updatedLink);
+    const updatedLink = await unblockAdminLink(props.link.id);
+    toast.success("Ссылка разблокирована.");
+    emit("unblocked", updatedLink);
   } catch (error: unknown) {
-    toast.error(getDeactivateLinkErrorMessage(error));
+    toast.error(getUnblockLinkErrorMessage(error));
   } finally {
-    isDeactivating.value = false;
+    isUnblocking.value = false;
   }
 };
 </script>
@@ -83,11 +79,11 @@ const deactivate = async () => {
     :variant="variant"
     :size="size"
     :disabled="isDisabled"
-    :loading="isDeactivating"
+    :loading="isUnblocking"
     :full-width="fullWidth"
     :title="title"
-    @click.stop="deactivate"
+    @click.stop="unblock"
   >
-    Деактивировать
+    Разблокировать
   </UiButton>
 </template>

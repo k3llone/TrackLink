@@ -195,6 +195,68 @@ func TestHandlerBlockLinkReturnsNotFound(t *testing.T) {
 	}
 }
 
+func TestHandlerUnblockLinkSuccessForAdmin(t *testing.T) {
+	repo := fakeRepository{
+		getByIDFn: func(_ context.Context, linkID string) (links.Link, error) {
+			return links.Link{ID: linkID, Status: links.StatusBlocked}, nil
+		},
+		updateStatusFn: func(_ context.Context, linkID, status string) (links.Link, error) {
+			if status != links.StatusActive {
+				t.Fatalf("expected active status update, got %s", status)
+			}
+			return links.Link{
+				ID:        linkID,
+				OwnerID:   "owner-1",
+				Code:      "abc123",
+				TargetURL: "https://example.com",
+				Status:    status,
+				CreatedAt: time.Date(2026, 5, 1, 7, 0, 0, 0, time.UTC),
+				UpdatedAt: time.Date(2026, 5, 1, 8, 0, 0, 0, time.UTC),
+			}, nil
+		},
+	}
+
+	handler := NewHandler(NewService(repo), "https://tracklink.example.com")
+	router := newAdminTestRouter(handler, accounts.RoleAdmin)
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/links/link-1/unblock", nil)
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-admin"})
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rr.Code)
+	}
+
+	var resp AdminLink
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Status != links.StatusActive {
+		t.Fatalf("expected active status, got %s", resp.Status)
+	}
+}
+
+func TestHandlerUnblockLinkReturnsNotFound(t *testing.T) {
+	repo := fakeRepository{
+		getByIDFn: func(_ context.Context, _ string) (links.Link, error) {
+			return links.Link{}, ErrLinkNotFound
+		},
+	}
+
+	handler := NewHandler(NewService(repo), "https://tracklink.example.com")
+	router := newAdminTestRouter(handler, accounts.RoleAdmin)
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/links/missing/unblock", nil)
+	req.AddCookie(&http.Cookie{Name: httpmiddleware.SessionCookieName, Value: "session-admin"})
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, rr.Code)
+	}
+}
+
 func TestHandlerDeactivateLinkSuccessForAdmin(t *testing.T) {
 	repo := fakeRepository{
 		getByIDFn: func(_ context.Context, linkID string) (links.Link, error) {
@@ -296,6 +358,20 @@ func TestHandlerAdminEndpointsRequireAdmin(t *testing.T) {
 			wantStatus: http.StatusForbidden,
 		},
 		{
+			name:       "no session on unblock",
+			method:     http.MethodPatch,
+			path:       "/api/v1/admin/links/link-1/unblock",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "customer on unblock",
+			role:       accounts.RoleCustomer,
+			sessionID:  "session-customer",
+			method:     http.MethodPatch,
+			path:       "/api/v1/admin/links/link-1/unblock",
+			wantStatus: http.StatusForbidden,
+		},
+		{
 			name:       "no session on deactivate",
 			method:     http.MethodPatch,
 			path:       "/api/v1/admin/links/link-1/deactivate",
@@ -353,6 +429,7 @@ func newAdminTestRouter(handler *Handler, role string) http.Handler {
 	router := chi.NewRouter()
 	router.With(auth.RequireAuth, auth.RequireAdmin).Get("/api/v1/admin/links", handler.ListLinks)
 	router.With(auth.RequireAuth, auth.RequireAdmin).Patch("/api/v1/admin/links/{linkId}/block", handler.BlockLink)
+	router.With(auth.RequireAuth, auth.RequireAdmin).Patch("/api/v1/admin/links/{linkId}/unblock", handler.UnblockLink)
 	router.With(auth.RequireAuth, auth.RequireAdmin).Patch("/api/v1/admin/links/{linkId}/deactivate", handler.DeactivateLink)
 
 	return router
