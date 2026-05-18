@@ -221,6 +221,7 @@ const en = {
 
   "linkActions.copy.success": "Short URL copied.",
   "linkActions.copy.error": "Could not copy short URL. Copy it manually.",
+  "linkActions.copy.shortUrlTitle": "Copy short URL {shortUrl}",
   "linkActions.delete.confirmTitle": "Delete link?",
   "linkActions.delete.description": "The link will be removed from the regular list. This action cannot be undone.",
   "linkActions.delete.descriptionWithUrl": "Link {shortUrl} will be removed from the regular list. This action cannot be undone.",
@@ -580,6 +581,7 @@ const ru: Record<keyof typeof en, string> = {
 
   "linkActions.copy.success": "Short URL скопирован.",
   "linkActions.copy.error": "Не удалось скопировать short URL. Скопируйте его вручную.",
+  "linkActions.copy.shortUrlTitle": "Скопировать short URL {shortUrl}",
   "linkActions.delete.confirmTitle": "Удалить ссылку?",
   "linkActions.delete.description": "Ссылка будет удалена из обычного списка. Это действие нельзя отменить.",
   "linkActions.delete.descriptionWithUrl": "Ссылка {shortUrl} будет удалена из обычного списка. Это действие нельзя отменить.",

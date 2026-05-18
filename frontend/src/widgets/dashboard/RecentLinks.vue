@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import type { Link } from "@/entities/link/link.types";
+import { useCopyShortUrl } from "@/features/link-actions/useCopyShortUrl";
 import { useI18n } from "@/shared/composables/useI18n";
 import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
@@ -12,6 +13,7 @@ defineProps<{
 
 const router = useRouter();
 const { formatDate, formatNumber, t } = useI18n();
+const { copyShortUrl } = useCopyShortUrl();
 
 const columns = computed<UiTableColumn[]>(() => [
   { key: "shortUrl", label: t("common.shortUrl"), width: "24%" },
@@ -28,13 +30,18 @@ const statusLabels: Record<Link["status"], () => string> = {
   deleted: () => t("link.status.deleted"),
 };
 
+const getShortUrl = (link: Link) => link.shortUrl || link.code;
+
 const openLinkAnalytics = (row: unknown) => {
   const link = row as Link;
   void router.push(getLinkDetailsPath(link.id));
 };
 
-const openLinkAnalyticsById = (linkId: string) => {
-  void router.push(getLinkDetailsPath(linkId));
+const getCopyShortUrlLabel = (link: Link) =>
+  t("linkActions.copy.shortUrlTitle", { shortUrl: getShortUrl(link) });
+
+const copyLinkShortUrl = (link: Link) => {
+  void copyShortUrl(getShortUrl(link));
 };
 </script>
 
@@ -49,15 +56,18 @@ const openLinkAnalyticsById = (linkId: string) => {
 
     <UiTable :columns="columns" :rows="links" :empty-text="t('links.recent.emptyText')" row-clickable @row-click="openLinkAnalytics">
       <template #cell="{ row, column }">
-        <a
+        <button
           v-if="column.key === 'shortUrl'"
-          class="recent-links__url recent-links__url--short"
-          :href="getLinkDetailsPath(row.id)"
-          :title="row.shortUrl"
-          @click.prevent.stop="openLinkAnalyticsById(row.id)"
+          class="recent-links__url recent-links__url--short recent-links__url--copy"
+          type="button"
+          :aria-label="getCopyShortUrlLabel(row)"
+          :title="getCopyShortUrlLabel(row)"
+          @click.stop="copyLinkShortUrl(row)"
+          @keydown.enter.stop
+          @keydown.space.stop
         >
-          {{ row.shortUrl }}
-        </a>
+          {{ getShortUrl(row) }}
+        </button>
 
         <a
           v-else-if="column.key === 'targetUrl'"
@@ -126,6 +136,25 @@ const openLinkAnalyticsById = (linkId: string) => {
 .recent-links__url--short {
   color: var(--tl-color-primary);
   font-weight: 700;
+}
+
+.recent-links__url--copy {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent-links__url--copy:hover,
+.recent-links__url--copy:focus-visible {
+  text-decoration: underline;
+}
+
+.recent-links__url--copy:focus-visible {
+  outline: 2px solid rgb(109 74 255 / 35%);
+  outline-offset: 2px;
 }
 
 @media (max-width: 767px) {
