@@ -2,12 +2,14 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import type { Link, LinkStatus, Pagination } from "@/entities/link/link.types";
+import { useCopyShortUrl } from "@/features/link-actions/useCopyShortUrl";
 import { useI18n } from "@/shared/composables/useI18n";
 import { getLinkDetailsPath } from "@/shared/lib/routes/paths";
 import { UiButton, UiPageState, UiStatusBadge, UiTable, type UiTableColumn } from "@/shared/ui";
 
 const router = useRouter();
 const { formatDate, formatNumber, t } = useI18n();
+const { copyShortUrl } = useCopyShortUrl();
 
 const props = withDefaults(
   defineProps<{
@@ -66,6 +68,8 @@ const paginationSummary = computed(() =>
 );
 
 const getShortUrl = (link: Link) => link.shortUrl || link.code;
+const getCopyShortUrlLabel = (link: Link) =>
+  t("linkActions.copy.shortUrlTitle", { shortUrl: getShortUrl(link) });
 
 const goToPreviousPage = () => {
   if (canGoPrevious.value) {
@@ -84,8 +88,8 @@ const openLinkAnalytics = (row: unknown) => {
   void router.push(getLinkDetailsPath(link.id));
 };
 
-const openLinkAnalyticsById = (linkId: string) => {
-  void router.push(getLinkDetailsPath(linkId));
+const copyLinkShortUrl = (link: Link) => {
+  void copyShortUrl(getShortUrl(link));
 };
 
 const onRetry = () => emit("retry");
@@ -135,15 +139,18 @@ const onRetry = () => emit("retry");
       </template>
 
       <template #cell="{ row, column }">
-        <a
+        <button
           v-if="column.key === 'shortUrl'"
-          class="links-table__url links-table__url--short"
-          :href="getLinkDetailsPath(row.id)"
-          :title="getShortUrl(row)"
-          @click.prevent.stop="openLinkAnalyticsById(row.id)"
+          class="links-table__url links-table__url--short links-table__url--copy"
+          type="button"
+          :aria-label="getCopyShortUrlLabel(row)"
+          :title="getCopyShortUrlLabel(row)"
+          @click.stop="copyLinkShortUrl(row)"
+          @keydown.enter.stop
+          @keydown.space.stop
         >
           {{ getShortUrl(row) }}
-        </a>
+        </button>
 
         <a
           v-else-if="column.key === 'targetUrl'"
@@ -226,6 +233,25 @@ const onRetry = () => emit("retry");
 .links-table__url--short {
   color: var(--tl-color-primary);
   font-weight: 700;
+}
+
+.links-table__url--copy {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.links-table__url--copy:hover,
+.links-table__url--copy:focus-visible {
+  text-decoration: underline;
+}
+
+.links-table__url--copy:focus-visible {
+  outline: 2px solid rgb(109 74 255 / 35%);
+  outline-offset: 2px;
 }
 
 .links-table__pagination {

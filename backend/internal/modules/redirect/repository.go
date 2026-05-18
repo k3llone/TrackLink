@@ -80,7 +80,7 @@ func (r *GormRepository) TouchActiveLink(ctx context.Context, linkID string, cli
 
 	result := r.db.WithContext(ctx).
 		Model(&linkModel{}).
-		Where("id = ?", linkID).
+		Where("id = ? AND status = ? AND deleted_at IS NULL", linkID, StatusActive).
 		Clauses(clause.Returning{}).
 		Updates(map[string]any{
 			"total_clicks":    gorm.Expr("total_clicks + 1"),

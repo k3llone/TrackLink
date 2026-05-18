@@ -560,6 +560,7 @@ components:
         targetUrl:
           type: string
           format: uri
+          description: Absolute http/https URL. Must not point to the TrackLink service domain.
           example: https://example.com/landing
         customAlias:
           type: string

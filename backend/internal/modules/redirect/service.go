@@ -63,10 +63,22 @@ func (s *Service) ResolveAndTrack(ctx context.Context, code string, meta Request
 		return ResolveResult{}, err
 	}
 
+	if link.Status != StatusActive || link.DeletedAt != nil {
+		return unavailableResult(link), nil
+	}
+
 	clickedAt := meta.ClickedAt.UTC()
 	if clickedAt.IsZero() {
 		clickedAt = time.Now().UTC()
 	}
+
+	if err := s.repo.TouchActiveLink(ctx, link.ID, clickedAt); err != nil {
+		if errors.Is(err, ErrLinkNotFound) {
+			return unavailableResult(link), nil
+		}
+		return ResolveResult{}, err
+	}
+
 	if s.analyticsRepo != nil {
 		if err := s.analyticsRepo.CreateClickEvent(ctx, analytics.CreateClickEventParams{
 			LinkID:    link.ID,
@@ -78,22 +90,19 @@ func (s *Service) ResolveAndTrack(ctx context.Context, code string, meta Request
 		}
 	}
 
-	if link.Status == StatusActive && link.DeletedAt == nil {
-		if err := s.repo.TouchActiveLink(ctx, link.ID, clickedAt); err != nil {
-			return ResolveResult{}, err
-		}
-		return ResolveResult{
-			Kind:      ResultKindRedirect,
-			TargetURL: link.TargetURL,
-			Status:    link.Status,
-		}, nil
-	}
+	return ResolveResult{
+		Kind:      ResultKindRedirect,
+		TargetURL: link.TargetURL,
+		Status:    link.Status,
+	}, nil
+}
 
+func unavailableResult(link Link) ResolveResult {
 	return ResolveResult{
 		Kind:    ResultKindUnavailable,
 		Status:  link.Status,
 		Deleted: link.Status == StatusDeleted || link.DeletedAt != nil,
-	}, nil
+	}
 }
 
 func normalizeNullableString(value string) *string {

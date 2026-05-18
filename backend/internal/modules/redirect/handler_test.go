@@ -34,6 +34,7 @@ func TestHandlerRedirectByCodeReturnsNotFound(t *testing.T) {
 }
 
 func TestHandlerRedirectByCodeRedirectsUnavailableLinkToStatusPages(t *testing.T) {
+	deletedAt := time.Date(2026, 5, 2, 11, 0, 0, 0, time.UTC)
 	tests := []struct {
 		name         string
 		link         Link
@@ -70,6 +71,17 @@ func TestHandlerRedirectByCodeRedirectsUnavailableLinkToStatusPages(t *testing.T
 			wantLocation: linkUnavailableDeletedPath,
 		},
 		{
+			name: "soft deleted",
+			link: Link{
+				ID:        "link-sd",
+				Code:      "soft-deleted",
+				TargetURL: "https://example.com",
+				Status:    StatusActive,
+				DeletedAt: &deletedAt,
+			},
+			wantLocation: linkUnavailableDeletedPath,
+		},
+		{
 			name: "unknown unavailable",
 			link: Link{
 				ID:        "link-g",
@@ -92,7 +104,13 @@ func TestHandlerRedirectByCodeRedirectsUnavailableLinkToStatusPages(t *testing.T
 					return nil
 				},
 			}
-			handler := NewHandler(NewService(repo, fakeAnalyticsRepository{}))
+			analyticsRepo := fakeAnalyticsRepository{
+				createClickEventFn: func(_ context.Context, _ analytics.CreateClickEventParams) error {
+					t.Fatal("create click event should not be called for unavailable statuses")
+					return nil
+				},
+			}
+			handler := NewHandler(NewService(repo, analyticsRepo))
 			router := chi.NewRouter()
 			router.Get("/s/{code}", handler.RedirectByCode)
 
