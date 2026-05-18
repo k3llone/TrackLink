@@ -43,14 +43,20 @@ var allowedUserUpdateStatuses = map[string]struct{}{
 }
 
 type Service struct {
-	repo     Repository
-	generate func(length int) (string, error)
+	repo           Repository
+	generate       func(length int) (string, error)
+	publicHostname string
 }
 
 func NewService(repo Repository) *Service {
+	return NewServiceWithPublicURL(repo, "")
+}
+
+func NewServiceWithPublicURL(repo Repository, publicURL string) *Service {
 	return &Service{
-		repo:     repo,
-		generate: generateCode,
+		repo:           repo,
+		generate:       generateCode,
+		publicHostname: normalizeURLHostname(publicURL),
 	}
 }
 
@@ -58,10 +64,14 @@ func (s *Service) Create(ctx context.Context, ownerID string, req CreateLinkRequ
 	targetURL := strings.TrimSpace(req.TargetURL)
 	fields := map[string]string{}
 	customAlias := normalizeAlias(req.CustomAlias)
+	parsedTargetURL, isTargetURLValid := parseTargetURL(targetURL)
+
 	if targetURL == "" {
 		fields["targetUrl"] = "Target URL is required"
-	} else if !isValidTargetURL(targetURL) {
+	} else if !isTargetURLValid {
 		fields["targetUrl"] = "Target URL must be a valid absolute URL with http or https scheme"
+	} else if s.isServiceURL(parsedTargetURL) {
+		fields["targetUrl"] = "Target URL cannot point to TrackLink service domain"
 	}
 	if customAlias != nil {
 		if len(*customAlias) < minCustomAliasLen || len(*customAlias) > maxCustomAliasLen {
@@ -291,19 +301,41 @@ func (s *Service) generateUniqueCode(ctx context.Context) (string, error) {
 	return "", ErrCodeGenerationExhausted
 }
 
-func isValidTargetURL(raw string) bool {
+func parseTargetURL(raw string) (*url.URL, bool) {
 	parsed, err := url.ParseRequestURI(raw)
 	if err != nil {
-		return false
+		return nil, false
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return false
+		return nil, false
 	}
 	if strings.TrimSpace(parsed.Host) == "" {
+		return nil, false
+	}
+
+	return parsed, true
+}
+
+func (s *Service) isServiceURL(targetURL *url.URL) bool {
+	if targetURL == nil || s.publicHostname == "" {
 		return false
 	}
 
-	return true
+	return strings.EqualFold(targetURL.Hostname(), s.publicHostname)
+}
+
+func normalizeURLHostname(rawURL string) string {
+	trimmed := strings.TrimSpace(rawURL)
+	if trimmed == "" {
+		return ""
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return ""
+	}
+
+	return strings.ToLower(strings.TrimSpace(parsed.Hostname()))
 }
 
 func normalizeAlias(alias *string) *string {

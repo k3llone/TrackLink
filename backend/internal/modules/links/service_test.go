@@ -223,6 +223,82 @@ func TestServiceCreateTargetURLValidation(t *testing.T) {
 	}
 }
 
+func TestServiceCreateRejectsTargetURLOnServiceDomain(t *testing.T) {
+	testCases := []struct {
+		name      string
+		targetURL string
+	}{
+		{name: "short URL path", targetURL: "https://tracklink.example.com/s/abc123"},
+		{name: "frontend route", targetURL: "https://tracklink.example.com/login"},
+		{name: "api route", targetURL: "https://tracklink.example.com/api/v1/links"},
+		{name: "different port", targetURL: "https://tracklink.example.com:8443/dashboard"},
+		{name: "different case", targetURL: "https://TRACKLINK.EXAMPLE.COM/settings"},
+	}
+
+	repo := fakeRepository{
+		createFn: func(_ context.Context, _ *Link) error {
+			t.Fatal("repo must not be called for service-domain target URL")
+			return nil
+		},
+	}
+	service := NewServiceWithPublicURL(repo, "https://tracklink.example.com")
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			_, fields, err := service.Create(context.Background(), "owner-1", CreateLinkRequest{
+				TargetURL: tc.targetURL,
+			})
+
+			if !errors.Is(err, ErrValidation) {
+				t.Fatalf("expected ErrValidation, got %v", err)
+			}
+			if _, ok := fields["targetUrl"]; !ok {
+				t.Fatalf("expected targetUrl field error, got %v", fields)
+			}
+		})
+	}
+}
+
+func TestServiceCreateAllowsExternalDomainAndSubdomain(t *testing.T) {
+	createCount := 0
+	repo := fakeRepository{
+		createFn: func(_ context.Context, _ *Link) error {
+			createCount++
+			return nil
+		},
+	}
+	service := NewServiceWithPublicURL(repo, "https://tracklink.example.com")
+
+	testCases := []struct {
+		name      string
+		targetURL string
+	}{
+		{name: "external domain", targetURL: "https://example.com/page"},
+		{name: "service subdomain", targetURL: "https://app.tracklink.example.com/page"},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			_, fields, err := service.Create(context.Background(), "owner-1", CreateLinkRequest{
+				TargetURL: tc.targetURL,
+			})
+
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+			if fields != nil {
+				t.Fatalf("expected nil fields, got %v", fields)
+			}
+		})
+	}
+
+	if createCount != len(testCases) {
+		t.Fatalf("expected %d create calls, got %d", len(testCases), createCount)
+	}
+}
+
 func TestServiceCreateReturnsErrorWhenCodeGenerationAttemptsExhausted(t *testing.T) {
 	repo := fakeRepository{
 		existsByCodeFn: func(_ context.Context, _ string) (bool, error) {
