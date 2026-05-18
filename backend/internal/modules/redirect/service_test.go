@@ -95,8 +95,8 @@ func TestServiceResolveByCodeTracksAndRedirectsActive(t *testing.T) {
 	if result.TargetURL != "https://example.com/landing" {
 		t.Fatalf("expected target url to match, got %s", result.TargetURL)
 	}
-	if len(steps) != 2 || steps[0] != "event" || steps[1] != "touch" {
-		t.Fatalf("expected click event before touch, got %v", steps)
+	if len(steps) != 2 || steps[0] != "touch" || steps[1] != "event" {
+		t.Fatalf("expected touch before click event, got %v", steps)
 	}
 }
 
@@ -126,48 +126,126 @@ func TestServiceResolveByCustomAliasAsNotFoundWhenMissing(t *testing.T) {
 	}
 }
 
-func TestServiceResolveTracksUnavailableWithoutTouch(t *testing.T) {
-	clicked := false
-	analyticsRepo := fakeAnalyticsRepository{
-		createClickEventFn: func(_ context.Context, event analytics.CreateClickEventParams) error {
-			clicked = true
-			if event.LinkID != "link-3" {
-				t.Fatalf("expected link id link-3, got %s", event.LinkID)
-			}
-			return nil
-		},
-	}
-	repo := fakeRepository{
-		findByCodeOrAliasFn: func(_ context.Context, code string) (Link, error) {
-			if code != "blocked-link" {
-				t.Fatalf("expected code blocked-link, got %s", code)
-			}
-			return Link{
-				ID:        "link-3",
+func TestServiceResolveUnavailableDoesNotTrackOrTouch(t *testing.T) {
+	deletedAt := time.Date(2026, 5, 2, 11, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name        string
+		link        Link
+		wantStatus  string
+		wantDeleted bool
+	}{
+		{
+			name: "blocked",
+			link: Link{
+				ID:        "link-blocked",
 				Code:      "blocked-link",
 				TargetURL: "https://example.com/blocked",
 				Status:    StatusBlocked,
+			},
+			wantStatus: StatusBlocked,
+		},
+		{
+			name: "inactive",
+			link: Link{
+				ID:        "link-inactive",
+				Code:      "inactive-link",
+				TargetURL: "https://example.com/inactive",
+				Status:    StatusInactive,
+			},
+			wantStatus: StatusInactive,
+		},
+		{
+			name: "deleted status",
+			link: Link{
+				ID:        "link-deleted",
+				Code:      "deleted-link",
+				TargetURL: "https://example.com/deleted",
+				Status:    StatusDeleted,
+			},
+			wantStatus:  StatusDeleted,
+			wantDeleted: true,
+		},
+		{
+			name: "soft deleted",
+			link: Link{
+				ID:        "link-soft-deleted",
+				Code:      "soft-deleted-link",
+				TargetURL: "https://example.com/soft-deleted",
+				Status:    StatusActive,
+				DeletedAt: &deletedAt,
+			},
+			wantStatus:  StatusActive,
+			wantDeleted: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			analyticsRepo := fakeAnalyticsRepository{
+				createClickEventFn: func(_ context.Context, _ analytics.CreateClickEventParams) error {
+					t.Fatal("create click event must not be called for unavailable link")
+					return nil
+				},
+			}
+			repo := fakeRepository{
+				findByCodeOrAliasFn: func(_ context.Context, code string) (Link, error) {
+					if code != tt.link.Code {
+						t.Fatalf("expected code %s, got %s", tt.link.Code, code)
+					}
+					return tt.link, nil
+				},
+				touchActiveLinkFn: func(_ context.Context, _ string, _ time.Time) error {
+					t.Fatal("touch active link must not be called for unavailable link")
+					return nil
+				},
+			}
+
+			service := NewService(repo, analyticsRepo)
+			result, err := service.ResolveAndTrack(context.Background(), tt.link.Code, RequestMeta{})
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+			if result.Kind != ResultKindUnavailable {
+				t.Fatalf("expected unavailable result, got %s", result.Kind)
+			}
+			if result.Status != tt.wantStatus {
+				t.Fatalf("expected status %s, got %s", tt.wantStatus, result.Status)
+			}
+			if result.Deleted != tt.wantDeleted {
+				t.Fatalf("expected deleted flag %v, got %v", tt.wantDeleted, result.Deleted)
+			}
+		})
+	}
+}
+
+func TestServiceResolveDoesNotTrackWhenActiveTouchFindsNoActiveRow(t *testing.T) {
+	repo := fakeRepository{
+		findByCodeOrAliasFn: func(_ context.Context, _ string) (Link, error) {
+			return Link{
+				ID:        "link-race",
+				Code:      "race",
+				TargetURL: "https://example.com/race",
+				Status:    StatusActive,
 			}, nil
 		},
 		touchActiveLinkFn: func(_ context.Context, _ string, _ time.Time) error {
-			t.Fatal("touch active link must not be called for blocked link")
+			return ErrLinkNotFound
+		},
+	}
+	analyticsRepo := fakeAnalyticsRepository{
+		createClickEventFn: func(_ context.Context, _ analytics.CreateClickEventParams) error {
+			t.Fatal("create click event must not be called when active touch fails")
 			return nil
 		},
 	}
 
 	service := NewService(repo, analyticsRepo)
-	result, err := service.ResolveAndTrack(context.Background(), "blocked-link", RequestMeta{})
+	result, err := service.ResolveAndTrack(context.Background(), "race", RequestMeta{})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 	if result.Kind != ResultKindUnavailable {
 		t.Fatalf("expected unavailable result, got %s", result.Kind)
-	}
-	if result.Status != StatusBlocked {
-		t.Fatalf("expected blocked status, got %s", result.Status)
-	}
-	if !clicked {
-		t.Fatal("expected click event to be created for unavailable link")
 	}
 }
 
