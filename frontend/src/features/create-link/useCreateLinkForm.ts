@@ -17,13 +17,22 @@ const isApiClientError = (error: unknown): error is ApiClientError =>
 
 const hasFieldErrors = (fields: ApiFieldErrors | null) => Boolean(fields && Object.keys(fields).length > 0);
 
-const isValidTargetUrl = (value: string) => {
+const parseTargetUrl = (value: string) => {
   try {
-    const url = new URL(value);
-    return (url.protocol === "http:" || url.protocol === "https:") && Boolean(url.hostname);
+    return new URL(value);
   } catch {
+    return null;
+  }
+};
+
+const isValidTargetUrl = (url: URL) => (url.protocol === "http:" || url.protocol === "https:") && Boolean(url.hostname);
+
+const isOwnServiceUrl = (url: URL) => {
+  if (typeof window === "undefined") {
     return false;
   }
+
+  return url.hostname.toLowerCase() === window.location.hostname.toLowerCase();
 };
 
 export const useCreateLinkForm = () => {
@@ -52,11 +61,14 @@ export const useCreateLinkForm = () => {
 
     const targetUrl = form.targetUrl.trim();
     const customAlias = form.customAlias.trim();
+    const parsedTargetUrl = parseTargetUrl(targetUrl);
 
     if (!targetUrl) {
       errors.targetUrl = t("createLink.validation.targetRequired");
-    } else if (!isValidTargetUrl(targetUrl)) {
+    } else if (!parsedTargetUrl || !isValidTargetUrl(parsedTargetUrl)) {
       errors.targetUrl = t("createLink.validation.targetInvalid");
+    } else if (isOwnServiceUrl(parsedTargetUrl)) {
+      errors.targetUrl = t("createLink.validation.targetSelfService");
     }
 
     if (customAlias) {
